@@ -1,0 +1,11 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "noEmit": true,
+    "paths": {
+      "@ai-arena/shared": ["../shared/src/index.ts"]
+    }
+  },
+  "include": ["src", "../shared/src"]
+}
