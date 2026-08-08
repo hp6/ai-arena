@@ -12,23 +12,33 @@ Monorepo with npm workspaces: `shared/`, `client/`, `server/`.
 
 - **shared/** — TypeScript types, game constants, and action definitions used by both client and server. Imported as `@ai-arena/shared`.
 - **client/** — Phaser 4 game (Vite + TypeScript). Renders the arena, fighters, HUD, game log, and chat. Communicates with server via HTTP. Frame-based replay with forward/backward stepping.
-- **server/** — Express + TypeScript (tsx). Authoritative game state manager. Runs game logic, validates moves, resolves combat. Proxies OpenRouter API calls (keeps API key server-side).
+- **server/** — Express + TypeScript (tsx). Authoritative game state manager. Runs game logic, validates moves, resolves combat. Calls OpenRouter for AI decisions (API key server-side).
 
 ### Server Game Engine
 
 - `server/src/game/GameState.ts` — Game state factory, turn order shuffling, current fighter lookup
 - `server/src/game/MoveValidator.ts` — Validates actions against game rules (adjacency, obstacles, AP cost, range)
 - `server/src/game/CombatResolver.ts` — Damage calculation with variance
-- `server/src/game/TurnManager.ts` — Turn sequencing (unused in Stage 2, logic moved to routes)
-- `server/src/ai/RandomBot.ts` — Generates valid random moves + chat messages. Used as placeholder/fallback before AI integration
+- `server/src/ai/OpenRouterClient.ts` — Calls OpenRouter with structured output schema, timeout/retry, fallback to RandomBot
+- `server/src/ai/PromptBuilder.ts` — Builds system + user prompts with full game state, valid moves, enemy distances
+- `server/src/ai/MoveSchema.ts` — JSON schema for structured AI responses (reasoning, chat, actions)
+- `server/src/ai/AgentConfig.ts` — Per-fighter model config and defaults
+- `server/src/ai/RandomBot.ts` — Fallback bot for when AI calls fail
 - `server/src/routes/game.ts` — API endpoints, per-action stepping, full game execution
+
+### Default AI Models
+
+- Fighter 0 (Crimson): `deepseek/deepseek-v4-flash-0731`
+- Fighter 1 (Azure): `google/gemini-3.6-flash`
+- Fighter 2 (Emerald): `anthropic/claude-sonnet-5`
+- Fighter 3 (Amber): `openai/gpt-5.6-luna-pro`
 
 ### API Endpoints
 
-- `POST /api/game/create` — Create new game, returns initial state
+- `POST /api/game/create` — Create new game (accepts optional `agents` array with `{model, personality}`)
 - `GET /api/game/:id/state` — Get current state
-- `POST /api/game/:id/step` — Execute one action (server generates via bot), returns state + log entry
-- `POST /api/game/:id/run` — Run entire game to completion, returns final state with full log
+- `POST /api/game/:id/step` — Execute one action via AI agent, returns state + log entry
+- `POST /api/game/:id/run` — Run entire game to completion via AI, returns final state
 
 ## Commands
 
@@ -39,7 +49,7 @@ npm install
 # Run server (port 3001)
 cd server && npm run dev
 
-# Run client dev server (port 3000)
+# Run client dev server
 cd client && npm run dev
 
 # Type-check
@@ -52,12 +62,15 @@ cd server && npx tsc --noEmit
 - 2 AP per turn: move costs 1, attack costs 1. Adjacent cells only for both.
 - Sequential turns with **randomized turn order each round** (shuffled at round start)
 - Server is authoritative — all move validation happens server-side
+- AI uses structured output (`response_format` with `json_schema`, `strict: true`) for reliable move parsing
+- AI system prompt includes valid moves, enemy distances, and recent chat for context
+- 30s timeout per AI call, one retry on transient errors, fallback to RandomBot
 - Client stores frame snapshots for backward navigation (no server call needed)
 - `@ai-arena/shared` is resolved via Vite alias + tsconfig paths (no build step needed)
-- Graphics primitives (circles, rectangles) used for all visuals — no sprite assets
 - OpenRouter API key stored in `.env` as `OR_KEY`
 - Dead players cannot chat
+- Fighter names display their model (e.g. "Crimson [deepseek-v4-flash-0731]")
 
 ## Game Constants
 
-All balance values are in `shared/src/constants.ts` — AP costs, damage, grid dimensions, fighter colors, spawn positions, and obstacle layout. Change them there to rebalance.
+All balance values are in `shared/src/constants.ts` — AP costs, damage, grid dimensions (12x12 square grid), fighter colors, spawn positions, obstacle layout, and chat length limit (50 chars). Change them there to rebalance.

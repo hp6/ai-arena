@@ -1,6 +1,8 @@
-export const GRID_WIDTH = 16;
+export const GRID_WIDTH = 12;
 export const GRID_HEIGHT = 12;
 export const CELL_SIZE = 48;
+
+export const MAX_CHAT_LENGTH = 50;
 
 export const MAX_HP = 100;
 export const MAX_AP = 2;
@@ -26,7 +28,7 @@ export const DEFAULT_OBSTACLES: { x: number; y: number }[] = [
 
 export const DEFAULT_SPAWN_POSITIONS: { x: number; y: number }[] = [
   { x: 1, y: 1 },
-  { x: 14, y: 10 },
-  { x: 14, y: 1 },
+  { x: 10, y: 10 },
+  { x: 10, y: 1 },
   { x: 1, y: 10 },
 ];

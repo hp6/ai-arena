@@ -37,6 +37,28 @@ export interface TurnLogEntry {
   actionType: "start" | "move" | "attack" | "wait" | "round_start" | "elimination" | "victory";
 }
 
+/** A fighter's visual state at one point in the replay. */
+export interface FighterSnapshot {
+  gridX: number;
+  gridY: number;
+  hp: number;
+  ap: number;
+  alive: boolean;
+}
+
+/**
+ * One replay frame: the board as it looked immediately after a single log entry.
+ * The server records these as the game runs so replay is accurate for both
+ * per-action stepping and run-to-completion.
+ */
+export interface GameFrame {
+  fighters: FighterSnapshot[];
+  activeFighterId: string;
+  round: number;
+  logEntry: TurnLogEntry;
+  chatMessages: ChatMessage[];
+}
+
 export interface GameState {
   id: string;
   round: number;

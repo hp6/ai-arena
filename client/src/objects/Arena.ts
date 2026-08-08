@@ -8,6 +8,7 @@ export const ARENA_OFFSET_Y = 60;
 export class Arena {
   private graphics: Phaser.GameObjects.Graphics;
   private obstacles: Set<string>;
+  private labels: Phaser.GameObjects.Text[] = [];
 
   constructor(
     private scene: Phaser.Scene,
@@ -37,23 +38,33 @@ export class Arena {
 
     // Grid coordinate labels
     for (let col = 0; col < GRID_WIDTH; col++) {
-      this.scene.add
-        .text(ARENA_OFFSET_X + col * CELL_SIZE + CELL_SIZE / 2, ARENA_OFFSET_Y - 10, `${col}`, {
-          fontSize: "9px",
-          color: "#555",
-          fontFamily: "monospace",
-        })
-        .setOrigin(0.5);
+      this.labels.push(
+        this.scene.add
+          .text(ARENA_OFFSET_X + col * CELL_SIZE + CELL_SIZE / 2, ARENA_OFFSET_Y - 10, `${col}`, {
+            fontSize: "9px",
+            color: "#555",
+            fontFamily: "monospace",
+          })
+          .setOrigin(0.5),
+      );
     }
     for (let row = 0; row < GRID_HEIGHT; row++) {
-      this.scene.add
-        .text(ARENA_OFFSET_X - 14, ARENA_OFFSET_Y + row * CELL_SIZE + CELL_SIZE / 2, `${row}`, {
-          fontSize: "9px",
-          color: "#555",
-          fontFamily: "monospace",
-        })
-        .setOrigin(0.5);
+      this.labels.push(
+        this.scene.add
+          .text(ARENA_OFFSET_X - 14, ARENA_OFFSET_Y + row * CELL_SIZE + CELL_SIZE / 2, `${row}`, {
+            fontSize: "9px",
+            color: "#555",
+            fontFamily: "monospace",
+          })
+          .setOrigin(0.5),
+      );
     }
+  }
+
+  destroy() {
+    this.graphics.destroy();
+    for (const label of this.labels) label.destroy();
+    this.labels = [];
   }
 
   gridToWorld(gridX: number, gridY: number): { x: number; y: number } {

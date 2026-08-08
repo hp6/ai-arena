@@ -1,24 +1,9 @@
 import Phaser from "phaser";
-import type { GameState, TurnLogEntry, ChatMessage, FighterState } from "@ai-arena/shared";
-import { FIGHTER_COLORS } from "@ai-arena/shared";
+import type { GameState, GameFrame } from "@ai-arena/shared";
 import { Arena } from "../objects/Arena";
 import { Fighter } from "../objects/Fighter";
 
 const API_BASE = "http://localhost:3001/api/game";
-
-interface Frame {
-  fighters: {
-    gridX: number;
-    gridY: number;
-    hp: number;
-    ap: number;
-    alive: boolean;
-  }[];
-  activeFighterId: string;
-  round: number;
-  logEntry: TurnLogEntry;
-  chatMessages: ChatMessage[];
-}
 
 // Right panel layout
 const PANEL_X = 830;
@@ -37,7 +22,7 @@ const VISIBLE_CHAT_LINES = Math.floor((CHAT_HEIGHT - 40) / CHAT_LINE_HEIGHT);
 export class ArenaScene extends Phaser.Scene {
   private arena!: Arena;
   private fighters: Fighter[] = [];
-  private frames: Frame[] = [];
+  private frames: GameFrame[] = [];
   private currentFrame = 0;
   private gameId: string | null = null;
   private gameFinished = false;
@@ -197,17 +182,21 @@ export class ArenaScene extends Phaser.Scene {
     this.statusText.setText("Creating game...");
 
     try {
-      const resp = await fetch(`${API_BASE}/create`, { method: "POST" });
+      const resp = await fetch(`${API_BASE}/create`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
       const data = await resp.json();
       const state: GameState = data.state;
 
       this.gameId = state.id;
       this.gameFinished = false;
-      this.frames = [];
+      this.frames = data.frames ?? [];
 
-      // Destroy old fighters
+      // Tear down the previous match's objects before rebuilding
       for (const f of this.fighters) f.destroy();
-      if (this.arena) this.arena = null!;
+      if (this.arena) this.arena.destroy();
 
       // Create arena + fighters from server state
       this.arena = new Arena(this, state.arena.obstacles);
@@ -229,12 +218,6 @@ export class ArenaScene extends Phaser.Scene {
         this.fighters.push(fighter);
       }
 
-      // Create initial frame from the starting log entries
-      this.addFrameFromState(state, state.log[0]);
-      if (state.log.length > 1) {
-        this.addFrameFromState(state, state.log[1]);
-      }
-
       this.applyFrame(0);
       this.statusText.setText(`Game ${state.id} - Server connected`);
     } catch (e) {
@@ -247,32 +230,29 @@ export class ArenaScene extends Phaser.Scene {
     if (!this.gameId || this.gameFinished || this.stepping) return false;
 
     this.stepping = true;
+    this.statusText.setText("Waiting for AI...");
+    this.statusText.setColor("#e67e22");
 
     try {
       const resp = await fetch(`${API_BASE}/${this.gameId}/step`, { method: "POST" });
+      if (!resp.ok) {
+        this.statusText.setText(resp.status === 409 ? "Step already running..." : "Server error!");
+        this.statusText.setColor("#e74c3c");
+        return false;
+      }
       const data = await resp.json();
-      const state: GameState = data.state;
 
-      if (data.logEntry) {
-        this.addFrameFromState(state, data.logEntry);
-      }
-      if (data.eliminationEntry) {
-        this.addFrameFromState(state, data.eliminationEntry);
-      }
-      if (data.victoryEntry) {
-        this.addFrameFromState(state, data.victoryEntry);
-      }
+      // The server owns replay history, so each frame holds the board as it
+      // actually looked at that moment.
+      this.frames = data.frames ?? this.frames;
 
-      // Check if new round_start entries were added
-      const knownLogCount = this.frames.length;
-      for (let i = knownLogCount; i < state.log.length; i++) {
-        const entry = state.log[i];
-        if (entry.actionType === "round_start") {
-          this.addFrameFromState(state, entry);
-        }
+      if (data.done) {
+        this.gameFinished = true;
+        this.statusText.setText("Game finished!");
+      } else {
+        this.statusText.setText(`Game ${this.gameId} - AI connected`);
       }
-
-      if (data.done) this.gameFinished = true;
+      this.statusText.setColor("#2ecc71");
 
       return true;
     } catch (e) {
@@ -282,23 +262,6 @@ export class ArenaScene extends Phaser.Scene {
     } finally {
       this.stepping = false;
     }
-  }
-
-  private addFrameFromState(state: GameState, logEntry: TurnLogEntry) {
-    const chatUpToNow = [...state.chat];
-    this.frames.push({
-      fighters: state.fighters.map((f) => ({
-        gridX: f.position.x,
-        gridY: f.position.y,
-        hp: f.hp,
-        ap: f.ap,
-        alive: f.isAlive,
-      })),
-      activeFighterId: logEntry.fighterId,
-      round: logEntry.round,
-      logEntry,
-      chatMessages: chatUpToNow,
-    });
   }
 
   // ---- NAVIGATION ----
@@ -334,15 +297,15 @@ export class ArenaScene extends Phaser.Scene {
     this.statusText.setText("Running to end...");
     try {
       const resp = await fetch(`${API_BASE}/${this.gameId}/run`, { method: "POST" });
+      if (!resp.ok) {
+        this.statusText.setText(resp.status === 409 ? "Step already running..." : "Server error!");
+        this.statusText.setColor("#e74c3c");
+        return;
+      }
       const data = await resp.json();
       const state: GameState = data.state;
 
-      // Rebuild all frames from the full log
-      this.frames = [];
-      for (const entry of state.log) {
-        this.addFrameFromState(state, entry);
-      }
-
+      this.frames = data.frames ?? this.frames;
       this.gameFinished = state.status !== "in_progress";
       this.applyFrame(this.frames.length - 1);
       this.statusText.setText(this.gameFinished ? "Game finished!" : "Running...");

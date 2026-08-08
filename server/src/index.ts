@@ -1,10 +1,22 @@
-import "dotenv/config";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import dotenv from "dotenv";
 import express from "express";
 import cors from "cors";
 import gameRouter from "./routes/game.js";
 
+// The server is run from server/, but .env lives at the repo root, so load both.
+// dotenv never overrides already-set vars, so a real shell env still wins.
+const here = path.dirname(fileURLToPath(import.meta.url));
+dotenv.config();
+dotenv.config({ path: path.resolve(here, "../../.env") });
+
 const app = express();
 const PORT = parseInt(process.env.PORT ?? "3001", 10);
+
+if (!process.env.OR_KEY) {
+  console.warn("WARNING: OR_KEY is not set — all fighters will fall back to RandomBot, not real AI.");
+}
 
 app.use(cors());
 app.use(express.json());
