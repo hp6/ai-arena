@@ -4,12 +4,13 @@ import dotenv from "dotenv";
 import express from "express";
 import cors from "cors";
 import gameRouter from "./routes/game.js";
+import { initDb } from "./db/database.js";
 
-// The server is run from server/, but .env lives at the repo root, so load both.
-// dotenv never overrides already-set vars, so a real shell env still wins.
 const here = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config();
 dotenv.config({ path: path.resolve(here, "../../.env") });
+
+initDb();
 
 const app = express();
 const PORT = parseInt(process.env.PORT ?? "3001", 10);
@@ -21,7 +22,7 @@ if (!process.env.OR_KEY) {
 app.use(cors());
 app.use(express.json());
 
-app.use("/api/game", gameRouter);
+app.use("/api/games", gameRouter);
 
 app.listen(PORT, () => {
   console.log(`AI Arena server running on http://localhost:${PORT}`);

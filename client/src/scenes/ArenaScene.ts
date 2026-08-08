@@ -1,11 +1,10 @@
 import Phaser from "phaser";
-import type { GameState, GameFrame } from "@ai-arena/shared";
+import type { GameFrame, FighterState, ArenaConfig } from "@ai-arena/shared";
 import { Arena } from "../objects/Arena";
 import { Fighter } from "../objects/Fighter";
 
-const API_BASE = "http://localhost:3001/api/game";
+const API_BASE = "http://localhost:3001/api/games";
 
-// Right panel layout
 const PANEL_X = 830;
 const PANEL_WIDTH = 555;
 
@@ -19,6 +18,8 @@ const CHAT_HEIGHT = 380;
 const CHAT_LINE_HEIGHT = 18;
 const VISIBLE_CHAT_LINES = Math.floor((CHAT_HEIGHT - 40) / CHAT_LINE_HEIGHT);
 
+const POLL_INTERVAL = 1500;
+
 export class ArenaScene extends Phaser.Scene {
   private arena!: Arena;
   private fighters: Fighter[] = [];
@@ -26,9 +27,9 @@ export class ArenaScene extends Phaser.Scene {
   private currentFrame = 0;
   private gameId: string | null = null;
   private gameFinished = false;
-  private stepping = false;
   private autoPlaying = false;
   private autoPlayTimer: Phaser.Time.TimerEvent | null = null;
+  private pollTimer: Phaser.Time.TimerEvent | null = null;
 
   private frameCounterText!: Phaser.GameObjects.Text;
   private roundText!: Phaser.GameObjects.Text;
@@ -46,7 +47,7 @@ export class ArenaScene extends Phaser.Scene {
   create() {
     this.createUI();
     this.setupInput();
-    this.startNewGame();
+    this.loadLatestGame();
   }
 
   private createUI() {
@@ -150,7 +151,7 @@ export class ArenaScene extends Phaser.Scene {
 
     this.add.text(320, btnY, ">|", btnStyleAlt)
       .setInteractive({ useHandCursor: true })
-      .on("pointerdown", () => this.jumpToEnd());
+      .on("pointerdown", () => this.goToFrame(this.frames.length - 1));
 
     this.btnAuto = this.add.text(380, btnY, "AUTO PLAY", { ...btnStyleAlt, backgroundColor: "#e67e22", color: "#111" })
       .setInteractive({ useHandCursor: true })
@@ -171,109 +172,163 @@ export class ArenaScene extends Phaser.Scene {
     this.input.keyboard!.on("keydown-RIGHT", () => this.stepForward());
     this.input.keyboard!.on("keydown-LEFT", () => this.stepBackward());
     this.input.keyboard!.on("keydown-HOME", () => this.goToFrame(0));
-    this.input.keyboard!.on("keydown-END", () => this.jumpToEnd());
+    this.input.keyboard!.on("keydown-END", () => this.goToFrame(this.frames.length - 1));
     this.input.keyboard!.on("keydown-SPACE", () => this.toggleAutoPlay());
   }
 
   // ---- SERVER COMMUNICATION ----
 
+  private async loadLatestGame() {
+    try {
+      const resp = await fetch(API_BASE);
+      if (!resp.ok) return;
+      const games = await resp.json();
+      if (games.length > 0) {
+        await this.loadGame(games[0].id);
+        return;
+      }
+    } catch {}
+    this.statusText.setText("No games yet — click NEW GAME");
+    this.statusText.setColor("#f1c40f");
+  }
+
+  private async loadGame(gameId: string) {
+    this.stopAutoPlay();
+    this.stopPolling();
+
+    try {
+      const metaResp = await fetch(`${API_BASE}/${gameId}`);
+      if (!metaResp.ok) return;
+      const meta = await metaResp.json();
+
+      const framesResp = await fetch(`${API_BASE}/${gameId}/frames?after=-1`);
+      if (!framesResp.ok) return;
+      const framesData = await framesResp.json();
+
+      this.setupGame(meta, framesData.frames);
+
+      this.gameFinished = meta.status !== "running";
+      if (!this.gameFinished) this.startPolling();
+    } catch {
+      this.statusText.setText("Failed to load game!");
+      this.statusText.setColor("#e74c3c");
+    }
+  }
+
   private async startNewGame() {
     this.stopAutoPlay();
+    this.stopPolling();
     this.statusText.setText("Creating game...");
 
     try {
-      const resp = await fetch(`${API_BASE}/create`, {
+      const resp = await fetch(`${API_BASE}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({}),
       });
       const data = await resp.json();
-      const state: GameState = data.state;
 
-      this.gameId = state.id;
-      this.gameFinished = false;
-      this.frames = data.frames ?? [];
+      this.setupGame(data, []);
 
-      // Tear down the previous match's objects before rebuilding
-      for (const f of this.fighters) f.destroy();
-      if (this.arena) this.arena.destroy();
+      this.statusText.setText(`Game ${data.id} - AI running...`);
+      this.statusText.setColor("#2ecc71");
 
-      // Create arena + fighters from server state
-      this.arena = new Arena(this, state.arena.obstacles);
-
-      this.fighters = [];
-      for (const fs of state.fighters) {
-        const worldPos = this.arena.gridToWorld(fs.position.x, fs.position.y);
-        const fighter = new Fighter(
-          this,
-          fs.id,
-          fs.name,
-          worldPos.x,
-          worldPos.y,
-          fs.color,
-          fs.hp,
-          fs.maxHp,
-        );
-        fighter.setPosition(worldPos.x, worldPos.y, fs.position.x, fs.position.y);
-        this.fighters.push(fighter);
-      }
-
-      this.applyFrame(0);
-      this.statusText.setText(`Game ${state.id} - Server connected`);
-    } catch (e) {
+      await this.pollFrames();
+      this.startPolling();
+    } catch {
       this.statusText.setText("Failed to connect to server!");
       this.statusText.setColor("#e74c3c");
     }
   }
 
-  private async fetchStep(): Promise<boolean> {
-    if (!this.gameId || this.gameFinished || this.stepping) return false;
+  private setupGame(data: { id: string; fighters: FighterState[]; arena: ArenaConfig; status?: string }, frames: GameFrame[]) {
+    this.gameId = data.id;
+    this.gameFinished = data.status === "finished" || data.status === "interrupted";
+    this.frames = frames;
 
-    this.stepping = true;
-    this.statusText.setText("Waiting for AI...");
-    this.statusText.setColor("#e67e22");
+    for (const f of this.fighters) f.destroy();
+    if (this.arena) this.arena.destroy();
+
+    this.arena = new Arena(this, data.arena.obstacles);
+
+    this.fighters = [];
+    for (const fs of data.fighters) {
+      const worldPos = this.arena.gridToWorld(fs.position.x, fs.position.y);
+      const fighter = new Fighter(
+        this,
+        fs.id,
+        fs.name,
+        worldPos.x,
+        worldPos.y,
+        fs.color,
+        fs.hp,
+        fs.maxHp,
+      );
+      fighter.setPosition(worldPos.x, worldPos.y, fs.position.x, fs.position.y);
+      this.fighters.push(fighter);
+    }
+
+    if (this.frames.length > 0) {
+      this.applyFrame(0);
+    }
+
+    const label = this.gameFinished ? "Game finished" : "AI running...";
+    this.statusText.setText(`Game ${data.id} - ${label}`);
+    this.statusText.setColor(this.gameFinished ? "#2ecc71" : "#e67e22");
+  }
+
+  private async pollFrames() {
+    if (!this.gameId) return;
 
     try {
-      const resp = await fetch(`${API_BASE}/${this.gameId}/step`, { method: "POST" });
-      if (!resp.ok) {
-        this.statusText.setText(resp.status === 409 ? "Step already running..." : "Server error!");
-        this.statusText.setColor("#e74c3c");
-        return false;
-      }
+      const after = this.frames.length - 1;
+      const resp = await fetch(`${API_BASE}/${this.gameId}/frames?after=${after}`);
+      if (!resp.ok) return;
+
       const data = await resp.json();
+      if (data.frames.length > 0) {
+        this.frames.push(...data.frames);
 
-      // The server owns replay history, so each frame holds the board as it
-      // actually looked at that moment.
-      this.frames = data.frames ?? this.frames;
-
-      if (data.done) {
-        this.gameFinished = true;
-        this.statusText.setText("Game finished!");
-      } else {
-        this.statusText.setText(`Game ${this.gameId} - AI connected`);
+        // If we're at the end (watching live), auto-advance to show new frames
+        if (this.currentFrame >= this.frames.length - data.frames.length - 1) {
+          this.applyFrame(this.frames.length - 1);
+        }
       }
-      this.statusText.setColor("#2ecc71");
 
-      return true;
-    } catch (e) {
-      this.statusText.setText("Server error!");
-      this.statusText.setColor("#e74c3c");
-      return false;
-    } finally {
-      this.stepping = false;
+      if (data.status === "finished" || data.status === "interrupted") {
+        this.gameFinished = true;
+        this.stopPolling();
+        this.statusText.setText(data.status === "finished" ? "Game finished!" : "Game interrupted");
+        this.statusText.setColor(data.status === "finished" ? "#2ecc71" : "#e74c3c");
+      } else {
+        this.statusText.setText(`Game ${this.gameId} - AI running... (${data.totalFrames} frames)`);
+      }
+    } catch {
+      // Polling failures are silent — we'll retry on next tick
+    }
+  }
+
+  private startPolling() {
+    this.stopPolling();
+    this.pollTimer = this.time.addEvent({
+      delay: POLL_INTERVAL,
+      callback: () => this.pollFrames(),
+      loop: true,
+    });
+  }
+
+  private stopPolling() {
+    if (this.pollTimer) {
+      this.pollTimer.destroy();
+      this.pollTimer = null;
     }
   }
 
   // ---- NAVIGATION ----
 
-  private async stepForward() {
+  private stepForward() {
     if (this.currentFrame < this.frames.length - 1) {
       this.applyFrame(this.currentFrame + 1);
-    } else if (!this.gameFinished) {
-      const ok = await this.fetchStep();
-      if (ok && this.currentFrame < this.frames.length - 1) {
-        this.applyFrame(this.currentFrame + 1);
-      }
     }
   }
 
@@ -284,34 +339,8 @@ export class ArenaScene extends Phaser.Scene {
   }
 
   private goToFrame(index: number) {
+    if (this.frames.length === 0) return;
     this.applyFrame(Math.max(0, Math.min(index, this.frames.length - 1)));
-  }
-
-  private async jumpToEnd() {
-    this.stopAutoPlay();
-    if (this.gameFinished) {
-      this.applyFrame(this.frames.length - 1);
-      return;
-    }
-
-    this.statusText.setText("Running to end...");
-    try {
-      const resp = await fetch(`${API_BASE}/${this.gameId}/run`, { method: "POST" });
-      if (!resp.ok) {
-        this.statusText.setText(resp.status === 409 ? "Step already running..." : "Server error!");
-        this.statusText.setColor("#e74c3c");
-        return;
-      }
-      const data = await resp.json();
-      const state: GameState = data.state;
-
-      this.frames = data.frames ?? this.frames;
-      this.gameFinished = state.status !== "in_progress";
-      this.applyFrame(this.frames.length - 1);
-      this.statusText.setText(this.gameFinished ? "Game finished!" : "Running...");
-    } catch (e) {
-      this.statusText.setText("Server error!");
-    }
   }
 
   private toggleAutoPlay() {
@@ -335,10 +364,12 @@ export class ArenaScene extends Phaser.Scene {
     }
   }
 
-  private async autoStep() {
+  private autoStep() {
     if (!this.autoPlaying) return;
 
-    await this.stepForward();
+    if (this.currentFrame < this.frames.length - 1) {
+      this.applyFrame(this.currentFrame + 1);
+    }
 
     if (this.gameFinished && this.currentFrame >= this.frames.length - 1) {
       this.stopAutoPlay();
@@ -376,69 +407,101 @@ export class ArenaScene extends Phaser.Scene {
     this.updateChat();
   }
 
-  private updateLog() {
-    const endIdx = this.currentFrame + 1;
-    const startIdx = Math.max(0, endIdx - VISIBLE_LOG_LINES);
+  private layoutPanel(
+    textObjects: Phaser.GameObjects.Text[],
+    panelY: number,
+    panelHeight: number,
+    items: { text: string; color: string; bold: boolean }[],
+  ) {
+    for (const t of textObjects) {
+      t.setText("");
+      t.setVisible(false);
+    }
 
-    for (let i = 0; i < VISIBLE_LOG_LINES; i++) {
-      const frameIdx = startIdx + i;
-      const logText = this.logTexts[i];
+    if (items.length === 0) return;
 
-      if (frameIdx >= endIdx) {
-        logText.setText("");
-        continue;
-      }
+    const availableHeight = panelHeight - 40;
+    const gap = 3;
 
-      const frame = this.frames[frameIdx];
-      const entry = frame.logEntry;
-      const prefix = `${String(frameIdx + 1).padStart(3, " ")} `;
-      logText.setText(`${prefix}${entry.description}`);
+    // Measure backwards to find which items fit, newest always visible
+    const fitting: number[] = [];
+    let totalHeight = 0;
+    const measure = textObjects[0];
 
-      const isCurrent = frameIdx === this.currentFrame;
-      if (isCurrent) {
-        logText.setColor("#ffffff");
-        logText.setFontStyle("bold");
-      } else if (entry.actionType === "round_start") {
-        logText.setColor("#f1c40f");
-        logText.setFontStyle("normal");
-      } else if (entry.actionType === "attack") {
-        logText.setColor("#e74c3c");
-        logText.setFontStyle("normal");
-      } else if (entry.actionType === "elimination") {
-        logText.setColor("#ff6b6b");
-        logText.setFontStyle("bold");
-      } else if (entry.actionType === "victory") {
-        logText.setColor("#2ecc71");
-        logText.setFontStyle("bold");
-      } else {
-        logText.setColor("#888");
-        logText.setFontStyle("normal");
-      }
+    for (let i = items.length - 1; i >= 0; i--) {
+      measure.setText(items[i].text);
+      const h = measure.height + gap;
+      if (totalHeight + h > availableHeight && fitting.length > 0) break;
+      totalHeight += h;
+      fitting.push(i);
+      if (fitting.length >= textObjects.length) break;
+    }
+
+    measure.setText("");
+    fitting.reverse();
+
+    let y = panelY + 30;
+    for (let slot = 0; slot < fitting.length; slot++) {
+      const item = items[fitting[slot]];
+      const obj = textObjects[slot];
+      obj.setText(item.text);
+      obj.setColor(item.color);
+      obj.setFontStyle(item.bold ? "bold" : "normal");
+      obj.setY(y);
+      obj.setVisible(true);
+      y += obj.height + gap;
     }
   }
 
-  private updateChat() {
-    const frame = this.frames[this.currentFrame];
-    const messages = frame.chatMessages;
+  private updateLog() {
+    if (this.frames.length === 0) {
+      this.layoutPanel(this.logTexts, LOG_Y, LOG_HEIGHT, []);
+      return;
+    }
 
-    const startIdx = Math.max(0, messages.length - VISIBLE_CHAT_LINES);
-    for (let i = 0; i < VISIBLE_CHAT_LINES; i++) {
-      const msgIdx = startIdx + i;
-      const chatText = this.chatTexts[i];
+    const endIdx = this.currentFrame + 1;
+    const items: { text: string; color: string; bold: boolean }[] = [];
 
-      if (msgIdx >= messages.length) {
-        chatText.setText("");
-        continue;
+    for (let fi = 0; fi < endIdx; fi++) {
+      const entry = this.frames[fi].logEntry;
+      const prefix = `${String(fi + 1).padStart(3, " ")} `;
+      const isCurrent = fi === this.currentFrame;
+
+      let color: string;
+      let bold: boolean;
+      if (isCurrent) {
+        color = "#ffffff"; bold = true;
+      } else if (entry.actionType === "round_start") {
+        color = "#f1c40f"; bold = false;
+      } else if (entry.actionType === "attack") {
+        color = "#e74c3c"; bold = false;
+      } else if (entry.actionType === "elimination") {
+        color = "#ff6b6b"; bold = true;
+      } else if (entry.actionType === "victory") {
+        color = "#2ecc71"; bold = true;
+      } else {
+        color = "#888"; bold = false;
       }
 
-      const msg = messages[msgIdx];
-      chatText.setText(`${msg.fighterName}: ${msg.text}`);
-
-      const colorHex = "#" + msg.fighterColor.toString(16).padStart(6, "0");
-      chatText.setColor(colorHex);
-
-      const isLatest = msgIdx === messages.length - 1;
-      chatText.setFontStyle(isLatest ? "bold" : "normal");
+      items.push({ text: `${prefix}${entry.description}`, color, bold });
     }
+
+    this.layoutPanel(this.logTexts, LOG_Y, LOG_HEIGHT, items);
+  }
+
+  private updateChat() {
+    if (this.frames.length === 0) {
+      this.layoutPanel(this.chatTexts, CHAT_Y, CHAT_HEIGHT, []);
+      return;
+    }
+
+    const messages = this.frames[this.currentFrame].chatMessages;
+    const items = messages.map((msg, i) => ({
+      text: `${msg.fighterName}: ${msg.text}`,
+      color: "#" + msg.fighterColor.toString(16).padStart(6, "0"),
+      bold: i === messages.length - 1,
+    }));
+
+    this.layoutPanel(this.chatTexts, CHAT_Y, CHAT_HEIGHT, items);
   }
 }
