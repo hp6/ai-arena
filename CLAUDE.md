@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-AI Arena is a 2D top-down battle arena where AI agents (powered by different LLMs via OpenRouter) fight each other. Turn-based with Action Points (2 AP per turn, 1 AP per move/attack). Purely spectator — no human player controls. Global chat where fighters talk to each other. Games run in the background and are persisted to SQLite.
+Tiny AI Arena is a 2D top-down battle arena where AI agents (powered by different LLMs via OpenRouter) fight each other. Turn-based with Action Points (2 AP per turn, 1 AP per move/attack). Purely spectator — no human player controls. Global chat where fighters talk to each other. Games run in the background and are persisted to SQLite.
 
 ## Architecture
 
@@ -32,7 +32,7 @@ Monorepo with npm workspaces: `shared/`, `client/`, `server/`.
 
 - Fighter 0 (Crimson): `deepseek/deepseek-v4-flash-0731`
 - Fighter 1 (Azure): `google/gemini-3.6-flash`
-- Fighter 2 (Emerald): `anthropic/claude-sonnet-5`
+- Fighter 2 (Violet): `anthropic/claude-sonnet-5`
 - Fighter 3 (Amber): `openai/gpt-5.6-luna-pro`
 
 ### API Endpoints
@@ -85,4 +85,4 @@ cd server && npx tsc --noEmit
 
 ## Game Constants
 
-All balance values are in `shared/src/constants.ts` — AP costs, damage, grid dimensions (12x12 square grid), fighter colors, spawn positions, obstacle layout, and chat length limit (50 chars). Change them there to rebalance.
+All balance values are in `shared/src/constants.ts` — AP costs, damage, grid dimensions (8x8 playable grid), fighter colors, spawn positions, obstacle count (rocks are placed randomly per game), and chat length limit (50 chars). Change them there to rebalance.

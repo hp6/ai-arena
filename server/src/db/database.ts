@@ -19,7 +19,7 @@ export interface GameRecord {
   agents: AgentConfig[];
 }
 
-export function initDb() {
+export function initDb(): void {
   db = new Database(DB_PATH);
   db.pragma("journal_mode = WAL");
   db.pragma("foreign_keys = ON");
@@ -44,8 +44,6 @@ export function initDb() {
 
   // Mark any games that were still running when the server last shut down.
   db.prepare("UPDATE games SET status = 'interrupted' WHERE status = 'running'").run();
-
-  return db;
 }
 
 export function getNextGameId(): number {
@@ -136,6 +134,25 @@ export function listGames(): Omit<GameRecord, "agents">[] {
       createdAt: row.created_at,
       fighters: config.fighters,
       arena: config.arena,
+    };
+  });
+}
+
+export function listAllGames(): GameRecord[] {
+  const rows = db
+    .prepare("SELECT * FROM games ORDER BY created_at DESC")
+    .all() as { id: string; status: string; winner: string | null; created_at: string; config: string }[];
+
+  return rows.map((row) => {
+    const config = JSON.parse(row.config);
+    return {
+      id: row.id,
+      status: row.status as GameRecord["status"],
+      winner: row.winner,
+      createdAt: row.created_at,
+      fighters: config.fighters,
+      arena: config.arena,
+      agents: config.agents,
     };
   });
 }

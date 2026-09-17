@@ -5,6 +5,7 @@ import express from "express";
 import cors from "cors";
 import gameRouter from "./routes/game.js";
 import { initDb } from "./db/database.js";
+import { computeStats } from "./stats.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config();
@@ -22,8 +23,16 @@ if (!process.env.OR_KEY) {
 app.use(cors());
 app.use(express.json());
 
+app.get("/", (_req, res) => {
+  res.json({ name: "Tiny AI Arena", status: "ok", endpoints: ["/api/games", "/api/stats"] });
+});
+
 app.use("/api/games", gameRouter);
 
+app.get("/api/stats", (_req, res) => {
+  res.json(computeStats());
+});
+
 app.listen(PORT, () => {
-  console.log(`AI Arena server running on http://localhost:${PORT}`);
+  console.log(`Tiny AI Arena server running on http://localhost:${PORT}`);
 });

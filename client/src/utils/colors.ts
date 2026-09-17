@@ -1,10 +1,5 @@
 export const COLORS = {
-  GRID_FLOOR: 0x16213e,
-  GRID_LINE: 0x0f3460,
-  OBSTACLE: 0x533483,
-  BACKGROUND: 0x1a1a2e,
-  HP_BAR_BG: 0x333333,
-  HP_BAR_FILL: 0x2ecc71,
-  HP_BAR_LOW: 0xe74c3c,
-  TEXT: "#e0e0e0",
+  HP_BAR_BG: 0x455a4b,
+  HP_BAR_FILL: 0x85b156,
+  HP_BAR_LOW: 0xe76161,
 };

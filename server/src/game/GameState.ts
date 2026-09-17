@@ -1,17 +1,59 @@
-import type { GameState, FighterState, ArenaConfig } from "@ai-arena/shared";
+import type { GameState, FighterState, ArenaConfig, Position } from "@ai-arena/shared";
 import {
   MAX_HP,
   MAX_AP,
   GRID_WIDTH,
   GRID_HEIGHT,
   CELL_SIZE,
-  DEFAULT_OBSTACLES,
+  OBSTACLE_COUNT,
   DEFAULT_SPAWN_POSITIONS,
   FIGHTER_COLORS,
   FIGHTER_NAMES,
 } from "@ai-arena/shared";
 
 import { getNextGameId } from "../db/database.js";
+
+// Random free cells that keep every spawn and its exits clear and never cut the board into disconnected parts
+export function randomObstacles(count: number, spawns: Position[]): Position[] {
+  const key = (p: Position) => `${p.x},${p.y}`;
+  const reservedKeys = new Set(
+    spawns.flatMap((p) => [p, { x: p.x + 1, y: p.y }, { x: p.x - 1, y: p.y }, { x: p.x, y: p.y + 1 }, { x: p.x, y: p.y - 1 }]).map(key),
+  );
+  const candidates: Position[] = [];
+  for (let y = 0; y < GRID_HEIGHT; y++) {
+    for (let x = 0; x < GRID_WIDTH; x++) {
+      if (!reservedKeys.has(`${x},${y}`)) candidates.push({ x, y });
+    }
+  }
+
+  for (;;) {
+    for (let i = candidates.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [candidates[i], candidates[j]] = [candidates[j], candidates[i]];
+    }
+    const obstacles = candidates.slice(0, count);
+    if (isBoardConnected(new Set(obstacles.map(key)))) return obstacles.map((o) => ({ ...o }));
+  }
+}
+
+function isBoardConnected(blocked: Set<string>): boolean {
+  const open = GRID_WIDTH * GRID_HEIGHT - blocked.size;
+  const start = DEFAULT_SPAWN_POSITIONS[0];
+  const seen = new Set([`${start.x},${start.y}`]);
+  const queue: Position[] = [start];
+  while (queue.length > 0) {
+    const { x, y } = queue.pop()!;
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const nx = x + dx;
+      const ny = y + dy;
+      const k = `${nx},${ny}`;
+      if (nx < 0 || ny < 0 || nx >= GRID_WIDTH || ny >= GRID_HEIGHT || blocked.has(k) || seen.has(k)) continue;
+      seen.add(k);
+      queue.push({ x: nx, y: ny });
+    }
+  }
+  return seen.size === open;
+}
 
 export function createGame(): GameState {
   const id = `game-${getNextGameId()}`;
@@ -35,7 +77,7 @@ export function createGame(): GameState {
     width: GRID_WIDTH,
     height: GRID_HEIGHT,
     cellSize: CELL_SIZE,
-    obstacles: DEFAULT_OBSTACLES.map((o) => ({ ...o })),
+    obstacles: randomObstacles(OBSTACLE_COUNT, DEFAULT_SPAWN_POSITIONS),
   };
 
   const turnOrder = shuffleOrder(fighters);

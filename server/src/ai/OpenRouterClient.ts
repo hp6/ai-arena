@@ -42,7 +42,7 @@ export async function getAIMove(
           Authorization: `Bearer ${apiKey}`,
           "Content-Type": "application/json",
           "HTTP-Referer": "https://ai-arena.local",
-          "X-OpenRouter-Title": "AI Arena",
+          "X-OpenRouter-Title": "Tiny AI Arena",
         },
         body: JSON.stringify({
           model,
