@@ -129,7 +129,7 @@ async function runGameLoop(
       let actions: Action[];
 
       if (agentConfig) {
-        const aiResult = await getAIMove(state, fighter.id, agentConfig.model, agentConfig.personality);
+        const aiResult = await getAIMove(state, fighter.id, agentConfig.model);
         actions = aiResult.actions;
 
         if (aiResult.chatMessage) {
@@ -141,10 +141,7 @@ async function runGameLoop(
           });
         }
 
-        if (aiResult.reasoning) {
-          console.log(`[AI] ${fighter.name}: "${aiResult.reasoning}"`);
-          if (aiResult.fallback) console.log(`[AI] ${fighter.name} used fallback (random bot)`);
-        }
+        if (aiResult.fallback) console.log(`[AI] ${fighter.name} used fallback (random bot)`);
       } else {
         actions = generateRandomActions(state, fighter.id);
         const chatMsg = generateChatMessage(state, fighter.id, actions);

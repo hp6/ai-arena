@@ -10,7 +10,6 @@ const TIMEOUT_MS = 30000;
 export interface AIResult {
   actions: Action[];
   chatMessage: string | null;
-  reasoning: string;
   model: string;
   fallback: boolean;
 }
@@ -19,7 +18,6 @@ export async function getAIMove(
   state: GameState,
   fighterId: string,
   model: string,
-  personality?: string,
 ): Promise<AIResult> {
   const apiKey = process.env.OR_KEY;
   if (!apiKey) {
@@ -27,7 +25,7 @@ export async function getAIMove(
     return fallbackResult(state, fighterId, model);
   }
 
-  const systemPrompt = buildSystemPrompt(state, fighterId, personality);
+  const systemPrompt = buildSystemPrompt(state, fighterId);
   const userPrompt = buildUserPrompt(state, fighterId);
 
   const fighter = state.fighters.find((f) => f.id === fighterId)!;
@@ -77,14 +75,11 @@ export async function getAIMove(
       }
 
       const parsed: AIMoveResponse = JSON.parse(content);
-      console.log(`[AI] ${fighter.name} (${model}): "${parsed.reasoning}"`);
-
       const actions = convertActions(parsed);
 
       return {
         actions,
         chatMessage: parsed.chat || null,
-        reasoning: parsed.reasoning,
         model,
         fallback: false,
       };
@@ -122,7 +117,6 @@ function fallbackResult(state: GameState, fighterId: string, model: string): AIR
   return {
     actions,
     chatMessage,
-    reasoning: "Fallback: using random bot",
     model,
     fallback: true,
   };

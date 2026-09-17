@@ -44,6 +44,15 @@ export function initDb() {
 
   // Mark any games that were still running when the server last shut down.
   db.prepare("UPDATE games SET status = 'interrupted' WHERE status = 'running'").run();
+
+  return db;
+}
+
+export function getNextGameId(): number {
+  const row = db.prepare("SELECT id FROM games ORDER BY rowid DESC LIMIT 1").get() as { id: string } | undefined;
+  if (!row) return 1;
+  const num = parseInt(row.id.replace("game-", ""), 10);
+  return (isNaN(num) ? 0 : num) + 1;
 }
 
 export function createGameRecord(

@@ -6,14 +6,9 @@ export const moveResponseSchema = {
     schema: {
       type: "object",
       properties: {
-        reasoning: {
-          type: "string",
-          description: "Brief explanation of your strategy this turn",
-        },
         chat: {
           type: "string",
-          description:
-            "A short message to say in the global chat visible to all fighters. Trash talk, strategy comments, or reactions. Keep it brief and in character.",
+          description: "Optional message for the global chat visible to all fighters.",
         },
         actions: {
           type: "array",
@@ -46,14 +41,13 @@ export const moveResponseSchema = {
           },
         },
       },
-      required: ["reasoning", "chat", "actions"],
+      required: ["chat", "actions"],
       additionalProperties: false,
     },
   },
 };
 
 export interface AIMoveResponse {
-  reasoning: string;
   chat: string;
   actions: {
     type: "move" | "attack" | "wait";

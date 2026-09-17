@@ -11,10 +11,10 @@ import {
   FIGHTER_NAMES,
 } from "@ai-arena/shared";
 
-let nextId = 1;
+import { getNextGameId } from "../db/database.js";
 
 export function createGame(): GameState {
-  const id = `game-${nextId++}`;
+  const id = `game-${getNextGameId()}`;
 
   const fighters: FighterState[] = [];
   for (let i = 0; i < 4; i++) {

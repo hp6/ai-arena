@@ -12,7 +12,6 @@ router.post("/", (req, res) => {
     agents = req.body.agents.map((a: any, i: number) => ({
       fighterId: `fighter-${i}`,
       model: a.model || createDefaultConfigs()[i].model,
-      personality: a.personality,
     }));
   } else {
     agents = createDefaultConfigs();
