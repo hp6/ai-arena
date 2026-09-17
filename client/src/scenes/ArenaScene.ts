@@ -3,6 +3,7 @@ import type { GameFrame, FighterState, ArenaConfig } from "@ai-arena/shared";
 import { CELL_SIZE, DISPLAY_COLS, DISPLAY_ROWS } from "@ai-arena/shared";
 import { Arena, ARENA_OFFSET_X, ARENA_OFFSET_Y } from "../objects/Arena";
 import { Fighter } from "../objects/Fighter";
+import { addMuteButton } from "../utils/sound";
 
 const API_BASE = "http://localhost:3001/api/games";
 
@@ -187,7 +188,7 @@ export class ArenaScene extends Phaser.Scene {
       .setInteractive({ useHandCursor: true })
       .on("pointerdown", () => this.scene.start("Menu"));
 
-    this.add.text(55, btnY + 30, "Arrow keys: Left/Right | Home/End | Space: auto | Esc: menu", {
+    this.add.text(55, btnY + 30, "Arrow keys: Left/Right | Home/End | Space: auto | Esc: menu | M: mute", {
       fontSize: "10px",
       color: "#6f8a86",
       fontFamily: "monospace",
@@ -201,6 +202,7 @@ export class ArenaScene extends Phaser.Scene {
     this.input.keyboard!.on("keydown-END", () => this.goToFrame(this.frames.length - 1));
     this.input.keyboard!.on("keydown-SPACE", () => this.toggleAutoPlay());
     this.input.keyboard!.on("keydown-ESC", () => this.scene.start("Menu"));
+    addMuteButton(this, ARENA_OFFSET_X + DISPLAY_COLS * CELL_SIZE, 12, 1);
   }
 
   // ---- SERVER COMMUNICATION ----
@@ -246,6 +248,14 @@ export class ArenaScene extends Phaser.Scene {
       const data = await resp.json();
       if (session !== this.session) return;
 
+      if (resp.status === 409) {
+        await this.loadGame(data.runningGameId);
+        if (session !== this.session) return;
+        this.statusText.setText(`${data.runningGameId} is still running - only one game at a time`);
+        this.statusText.setColor("#e8ce91");
+        return;
+      }
+
       this.setupGame(data, []);
 
       this.statusText.setText(`Game ${data.id} - AI running...`);
@@ -268,7 +278,7 @@ export class ArenaScene extends Phaser.Scene {
     for (const f of this.fighters) f.destroy();
     this.arena?.destroy();
 
-    const arena = new Arena(this, data.arena.obstacles);
+    const arena = new Arena(this, data.arena.obstacles, data.arena.gold ?? null);
     this.arena = arena;
     this.cameras.main.ignore(arena.layer);
 
@@ -407,15 +417,24 @@ export class ArenaScene extends Phaser.Scene {
 
     this.currentFrame = Math.max(0, Math.min(index, this.frames.length - 1));
     const frame = this.frames[this.currentFrame];
+    this.arena!.setGold(frame.gold ?? null);
 
     for (let i = 0; i < this.fighters.length; i++) {
       const fs = frame.fighters[i];
       const worldPos = this.arena!.gridToWorld(fs.gridX, fs.gridY);
       this.fighters[i].setPosition(worldPos.x, worldPos.y, fs.gridX, fs.gridY);
       this.fighters[i].setHp(fs.hp);
-      this.fighters[i].setAp(fs.ap);
+      this.fighters[i].setAp(fs.ap, fs.maxAp);
       this.fighters[i].setAlive(fs.alive);
       this.fighters[i].setActive(this.fighters[i].id === frame.activeFighterId);
+    }
+
+    if (frame.logEntry.actionType === "move") {
+      this.sound.play("footstep");
+    }
+
+    if (frame.logEntry.actionType === "attack") {
+      this.sound.play("sword_clash", { volume: 0.35 });
     }
 
     if (frame.logEntry.actionType === "attack" && this.currentFrame > 0) {
@@ -425,6 +444,10 @@ export class ArenaScene extends Phaser.Scene {
       if (attacker >= 0 && target >= 0) {
         this.fighters[attacker].playAttack(frame.fighters[target].gridX);
       }
+      frame.fighters.forEach((fs, i) => {
+        const change = fs.hp - prev.fighters[i].hp;
+        if (change !== 0) this.showHpChange(this.fighters[i], change);
+      });
     }
 
     this.frameCounterText.setText(`Frame ${this.currentFrame + 1} / ${this.frames.length}`);
@@ -435,6 +458,33 @@ export class ArenaScene extends Phaser.Scene {
 
     this.updateLog();
     this.updateChat();
+  }
+
+  private showHpChange(fighter: Fighter, change: number) {
+    const { x, y } = fighter.container;
+    const label = this.add
+      .text(x + Phaser.Math.Between(-6, 6), y - 20, change < 0 ? `${change}` : `+${change}`, {
+        fontSize: "20px",
+        fontFamily: "monospace",
+        fontStyle: "bold",
+        color: change < 0 ? "#ff6b5e" : "#b6f25c",
+        stroke: "#161c2e",
+        strokeThickness: 5,
+      })
+      .setOrigin(0.5)
+      .setScale(0.6);
+    // Only the arena camera should draw it, or it would render twice
+    this.cameras.main.ignore(label);
+
+    this.tweens.add({ targets: label, scale: 1, duration: 180, ease: "Back.easeOut" });
+    this.tweens.add({ targets: label, y: label.y - 44, duration: 1100, ease: "Cubic.easeOut" });
+    this.tweens.add({
+      targets: label,
+      alpha: 0,
+      delay: 550,
+      duration: 550,
+      onComplete: () => label.destroy(),
+    });
   }
 
   private layoutPanel(
@@ -504,6 +554,8 @@ export class ArenaScene extends Phaser.Scene {
         color = "#e8ce91"; bold = false;
       } else if (entry.actionType === "attack") {
         color = "#e76161"; bold = false;
+      } else if (entry.actionType === "pickup") {
+        color = "#f5d76e"; bold = true;
       } else if (entry.actionType === "elimination") {
         color = "#e76161"; bold = true;
       } else if (entry.actionType === "victory") {

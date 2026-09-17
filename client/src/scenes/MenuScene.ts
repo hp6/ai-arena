@@ -1,5 +1,6 @@
 import Phaser from "phaser";
 import { warriorColor } from "../objects/Fighter";
+import { addMuteButton } from "../utils/sound";
 
 const STATS_URL = "http://localhost:3001/api/stats";
 const REFRESH_MS = 5000;
@@ -93,6 +94,7 @@ export class MenuScene extends Phaser.Scene {
   private boardLayer!: Phaser.GameObjects.Container;
   private historyLayer!: Phaser.GameObjects.Container;
   private statusText!: Phaser.GameObjects.Text;
+  private playButton!: Phaser.GameObjects.Text;
 
   constructor() {
     super("Menu");
@@ -106,14 +108,20 @@ export class MenuScene extends Phaser.Scene {
     text(this, MARGIN, 72, "LLM battle royale — leaderboard & match history", 13, C.text);
     this.statusText = text(this, MARGIN, 92, "Loading…", 12, C.muted);
 
-    text(this, W - MARGIN, 44, "NEW GAME", 18, C.navy, {
+    this.playButton = text(this, W - MARGIN, 44, "NEW GAME", 18, C.navy, {
       fontStyle: "bold",
       backgroundColor: C.grass,
       padding: { x: 16, y: 8 },
     })
       .setOrigin(1, 0)
       .setInteractive({ useHandCursor: true })
-      .on("pointerdown", () => this.scene.start("Arena", { newGame: true }));
+      .on("pointerdown", () => {
+        // Only one game can run at a time, so while one is live this button watches it instead
+        const live = this.stats?.matches.find((m) => m.status === "running");
+        this.scene.start("Arena", live ? { gameId: live.id } : { newGame: true });
+      });
+
+    addMuteButton(this, W - MARGIN, 90, 1);
 
     this.summaryLayer = this.add.container();
     this.boardLayer = this.add.container();
@@ -147,6 +155,8 @@ export class MenuScene extends Phaser.Scene {
       this.stats = stats;
       this.scroll = Math.min(this.scroll, Math.max(0, stats.matches.length - HISTORY_ROWS));
       this.statusText.setText(`Updated ${new Date().toLocaleTimeString()}`).setColor(C.muted);
+      const live = stats.matches.find((m) => m.status === "running");
+      this.playButton.setText(live ? `WATCH LIVE: ${live.id}` : "NEW GAME").setBackgroundColor(live ? C.gold : C.grass);
       this.renderSummary();
       this.renderBoard();
       this.renderHistory();

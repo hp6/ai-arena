@@ -1,6 +1,14 @@
 import type { GameState, TurnLogEntry, ChatMessage, GameFrame } from "@ai-arena/shared";
 import type { Action } from "@ai-arena/shared";
-import { MAX_AP, MOVE_COST, ATTACK_COST, MAX_CHAT_LENGTH } from "@ai-arena/shared";
+import {
+  MAX_AP,
+  MOVE_COST,
+  ATTACK_COST,
+  MAX_CHAT_LENGTH,
+  KILL_BONUS_AP,
+  KILL_HEAL_RATIO,
+  GOLD_BONUS_AP,
+} from "@ai-arena/shared";
 import { createGame, getCurrentFighter, shuffleOrder } from "./GameState.js";
 import { validateAction } from "./MoveValidator.js";
 import { resolveAttack } from "./CombatResolver.js";
@@ -13,6 +21,10 @@ const runningGames = new Set<string>();
 
 export function isGameRunning(gameId: string): boolean {
   return runningGames.has(gameId);
+}
+
+export function getRunningGameId(): string | null {
+  return runningGames.values().next().value ?? null;
 }
 
 export function startGame(agents?: AgentConfig[]): string {
@@ -81,12 +93,14 @@ function snapshot(state: GameState, logEntry: TurnLogEntry, chat: ChatMessage[])
       gridY: f.position.y,
       hp: f.hp,
       ap: f.ap,
+      maxAp: f.maxAp,
       alive: f.isAlive,
     })),
     activeFighterId: logEntry.fighterId,
     round: logEntry.round,
     logEntry,
     chatMessages: chat.map((c) => ({ ...c })),
+    gold: state.gold ? { ...state.gold } : null,
   };
 }
 
@@ -124,7 +138,6 @@ async function runGameLoop(
       const fighter = getCurrentFighter(state);
       if (!fighter) break;
 
-      // Get AI or random actions for this fighter
       const agentConfig = agents.find((a) => a.fighterId === fighter.id);
       let actions: Action[];
 
@@ -155,8 +168,8 @@ async function runGameLoop(
         }
       }
 
-      // Execute each action
-      let ap = MAX_AP;
+      // Actions run in order; extra ones only happen if kills or gold earned the AP for them
+      let ap = fighter.maxAp;
       for (const action of actions) {
         if (ap <= 0) break;
         const result = executeOneAction(state, fighter.id, action, ap);
@@ -165,11 +178,8 @@ async function runGameLoop(
         if (result.chatMessage) pushChat(chat, state, result.chatMessage);
 
         frameIndex = commitFrame(state, result.logEntry, chat, state.id, frameIndex);
-        if (result.eliminationEntry) {
-          frameIndex = commitFrame(state, result.eliminationEntry, chat, state.id, frameIndex);
-        }
-        if (result.victoryEntry) {
-          frameIndex = commitFrame(state, result.victoryEntry, chat, state.id, frameIndex);
+        for (const extra of [result.bonusEntry, result.eliminationEntry, result.victoryEntry]) {
+          if (extra) frameIndex = commitFrame(state, extra, chat, state.id, frameIndex);
         }
 
         if (state.status !== "in_progress") break;
@@ -192,6 +202,7 @@ async function runGameLoop(
 
 interface ActionResult {
   logEntry: TurnLogEntry;
+  bonusEntry: TurnLogEntry | null;
   eliminationEntry: TurnLogEntry | null;
   victoryEntry: TurnLogEntry | null;
   chatMessage: ChatMessage | null;
@@ -213,6 +224,7 @@ function executeOneAction(state: GameState, fighterId: string, action: Action, a
         details: `Attempted: ${JSON.stringify(action)}\nReason: ${validation.reason}\nAP ${ap}->${newAp}`,
         actionType: "wait",
       },
+      bonusEntry: null,
       eliminationEntry: null,
       victoryEntry: null,
       chatMessage: null,
@@ -224,16 +236,31 @@ function executeOneAction(state: GameState, fighterId: string, action: Action, a
     case "move": {
       const oldPos = { ...fighter.position };
       fighter.position = { ...action.targetPosition };
-      const newAp = ap - MOVE_COST;
+      const movedAp = ap - MOVE_COST;
+      const onGold = state.gold !== null && state.gold.x === fighter.position.x && state.gold.y === fighter.position.y;
+      const newAp = onGold ? movedAp + GOLD_BONUS_AP : movedAp;
+      if (onGold) {
+        state.gold = null;
+        fighter.maxAp += GOLD_BONUS_AP;
+      }
       fighter.ap = newAp;
       return {
         logEntry: {
           round: state.round,
           fighterId,
           description: `${fighter.name} moves (${oldPos.x},${oldPos.y})->(${fighter.position.x},${fighter.position.y})`,
-          details: `From (${oldPos.x},${oldPos.y}) to (${fighter.position.x},${fighter.position.y}), AP ${ap}->${newAp}`,
+          details: `From (${oldPos.x},${oldPos.y}) to (${fighter.position.x},${fighter.position.y}), AP ${ap}->${movedAp}`,
           actionType: "move",
         },
+        bonusEntry: onGold
+          ? {
+              round: state.round,
+              fighterId,
+              description: `${fighter.name} eats the gold! +${GOLD_BONUS_AP} AP per turn`,
+              details: `Gold at (${fighter.position.x},${fighter.position.y}) consumed. AP this turn ${movedAp}->${newAp}, AP per turn now ${fighter.maxAp}`,
+              actionType: "pickup",
+            }
+          : null,
         eliminationEntry: null,
         victoryEntry: null,
         chatMessage: null,
@@ -245,7 +272,8 @@ function executeOneAction(state: GameState, fighterId: string, action: Action, a
       const target = state.fighters.find((f) => f.id === action.targetId)!;
       const result = resolveAttack(target.hp);
       target.hp = result.targetHpAfter;
-      const newAp = ap - ATTACK_COST;
+      const attackAp = ap - ATTACK_COST;
+      let newAp = attackAp;
       fighter.ap = newAp;
 
       let eliminationEntry: TurnLogEntry | null = null;
@@ -256,11 +284,19 @@ function executeOneAction(state: GameState, fighterId: string, action: Action, a
         target.isAlive = false;
         target.ap = 0;
 
+        const hpBefore = fighter.hp;
+        const heal = Math.floor(fighter.maxHp * KILL_HEAL_RATIO);
+        fighter.hp = Math.min(fighter.maxHp, fighter.hp + heal);
+        const healText = fighter.hp - hpBefore < heal ? `+${heal} HP (capped at ${fighter.maxHp})` : `+${heal} HP`;
+        newAp = attackAp + KILL_BONUS_AP;
+        fighter.ap = newAp;
+        fighter.maxAp += KILL_BONUS_AP;
+
         eliminationEntry = {
           round: state.round,
           fighterId,
-          description: `${target.name} is ELIMINATED!`,
-          details: `${target.name} knocked out by ${fighter.name}. Remaining: ${state.fighters.filter((f) => f.isAlive).length} fighters`,
+          description: `${target.name} is ELIMINATED! ${fighter.name} +${KILL_BONUS_AP} AP per turn, ${healText}`,
+          details: `${target.name} knocked out by ${fighter.name}. Remaining: ${state.fighters.filter((f) => f.isAlive).length} fighters\nKill reward: AP this turn ${attackAp}->${newAp}, AP per turn now ${fighter.maxAp}, HP ${hpBefore}->${fighter.hp} (heal ${heal} = ${Math.round(KILL_HEAL_RATIO * 100)}% of max ${fighter.maxHp})`,
           actionType: "elimination",
         };
 
@@ -299,9 +335,10 @@ function executeOneAction(state: GameState, fighterId: string, action: Action, a
           round: state.round,
           fighterId,
           description: `${fighter.name} attacks ${target.name} for ${result.damage} dmg -> ${target.hp} HP`,
-          details: `Attacker: ${fighter.name} at (${fighter.position.x},${fighter.position.y}), AP ${ap}->${newAp}\nTarget: ${target.name} at (${target.position.x},${target.position.y}), HP ${result.targetHpBefore}->${result.targetHpAfter}\nDamage: ${result.damage}`,
+          details: `Attacker: ${fighter.name} at (${fighter.position.x},${fighter.position.y}), AP ${ap}->${attackAp}\nTarget: ${target.name} at (${target.position.x},${target.position.y}), HP ${result.targetHpBefore}->${result.targetHpAfter}\nDamage: ${result.damage}`,
           actionType: "attack",
         },
+        bonusEntry: null,
         eliminationEntry,
         victoryEntry,
         chatMessage,
@@ -320,6 +357,7 @@ function executeOneAction(state: GameState, fighterId: string, action: Action, a
           details: `AP ${ap}->${newAp}`,
           actionType: "wait",
         },
+        bonusEntry: null,
         eliminationEntry: null,
         victoryEntry: null,
         chatMessage: null,
@@ -338,6 +376,7 @@ function executeOneAction(state: GameState, fighterId: string, action: Action, a
           details: `AP ${ap}->${newAp}`,
           actionType: "wait",
         },
+        bonusEntry: null,
         eliminationEntry: null,
         victoryEntry: null,
         chatMessage: null,
@@ -370,7 +409,7 @@ function advanceTurn(
     state.turnIndex = 0;
 
     for (const f of state.fighters) {
-      if (f.isAlive) f.ap = MAX_AP;
+      if (f.isAlive) f.ap = f.maxAp;
     }
 
     const entry: TurnLogEntry = {
@@ -387,7 +426,7 @@ function advanceTurn(
   }
 
   const current = getCurrentFighter(state);
-  if (current) current.ap = MAX_AP;
+  if (current) current.ap = current.maxAp;
 
   return frameIndex;
 }

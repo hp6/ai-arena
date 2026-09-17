@@ -1,0 +1,115 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="754" height="496" viewBox="0 0 754 496" font-family="DejaVu Sans Mono, Menlo, Consolas, monospace">
+<defs><pattern id="hatch" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="8" height="8" fill="#9cc563"/><line x1="0" y1="0" x2="0" y2="8" stroke="#e8ce91" stroke-width="4" opacity="0.8"/></pattern></defs>
+<rect width="754" height="496" rx="14" fill="#161c2e"/>
+<text x="56" y="34" fill="#e8ce91" font-size="18" font-weight="bold">THE 8x8 BATTLEFIELD</text>
+<g transform="translate(0 24)"><text x="79.0" y="54" fill="#8fa39e" font-size="13" text-anchor="middle">0</text></g>
+<g transform="translate(0 24)"><text x="42" y="92.0" fill="#8fa39e" font-size="13" text-anchor="middle">0</text></g>
+<g transform="translate(0 24)"><text x="125.0" y="54" fill="#8fa39e" font-size="13" text-anchor="middle">1</text></g>
+<g transform="translate(0 24)"><text x="42" y="138.0" fill="#8fa39e" font-size="13" text-anchor="middle">1</text></g>
+<g transform="translate(0 24)"><text x="171.0" y="54" fill="#8fa39e" font-size="13" text-anchor="middle">2</text></g>
+<g transform="translate(0 24)"><text x="42" y="184.0" fill="#8fa39e" font-size="13" text-anchor="middle">2</text></g>
+<g transform="translate(0 24)"><text x="217.0" y="54" fill="#8fa39e" font-size="13" text-anchor="middle">3</text></g>
+<g transform="translate(0 24)"><text x="42" y="230.0" fill="#8fa39e" font-size="13" text-anchor="middle">3</text></g>
+<g transform="translate(0 24)"><text x="263.0" y="54" fill="#8fa39e" font-size="13" text-anchor="middle">4</text></g>
+<g transform="translate(0 24)"><text x="42" y="276.0" fill="#8fa39e" font-size="13" text-anchor="middle">4</text></g>
+<g transform="translate(0 24)"><text x="309.0" y="54" fill="#8fa39e" font-size="13" text-anchor="middle">5</text></g>
+<g transform="translate(0 24)"><text x="42" y="322.0" fill="#8fa39e" font-size="13" text-anchor="middle">5</text></g>
+<g transform="translate(0 24)"><text x="355.0" y="54" fill="#8fa39e" font-size="13" text-anchor="middle">6</text></g>
+<g transform="translate(0 24)"><text x="42" y="368.0" fill="#8fa39e" font-size="13" text-anchor="middle">6</text></g>
+<g transform="translate(0 24)"><text x="401.0" y="54" fill="#8fa39e" font-size="13" text-anchor="middle">7</text></g>
+<g transform="translate(0 24)"><text x="42" y="414.0" fill="#8fa39e" font-size="13" text-anchor="middle">7</text></g>
+<g transform="translate(0 24)"><text x="240.0" y="36" fill="#8fa39e" font-size="11" text-anchor="middle">x →</text></g>
+<g transform="translate(0 24)"><text x="18" y="248.0" fill="#8fa39e" font-size="11" text-anchor="middle" transform="rotate(-90 18 248.0)">y →</text></g>
+<g transform="translate(0 24)"><rect x="56" y="64" width="46" height="46" fill="#85b156" stroke="#5f8a3a" stroke-width="1"/></g>
+<g transform="translate(0 24)"><rect x="102" y="64" width="46" height="46" fill="url(#hatch)" stroke="#5f8a3a" stroke-width="1"/></g>
+<g transform="translate(0 24)"><rect x="148" y="64" width="46" height="46" fill="#85b156" stroke="#5f8a3a" stroke-width="1"/></g>
+<g transform="translate(0 24)"><rect x="194" y="64" width="46" height="46" fill="#7aa84d" stroke="#5f8a3a" stroke-width="1"/></g>
+<g transform="translate(0 24)"><rect x="240" y="64" width="46" height="46" fill="#85b156" stroke="#5f8a3a" stroke-width="1"/></g>
+<g transform="translate(0 24)"><rect x="286" y="64" width="46" height="46" fill="#7aa84d" stroke="#5f8a3a" stroke-width="1"/></g>
+<g transform="translate(0 24)"><rect x="332" y="64" width="46" height="46" fill="url(#hatch)" stroke="#5f8a3a" stroke-width="1"/></g>
+<g transform="translate(0 24)"><rect x="378" y="64" width="46" height="46" fill="#7aa84d" stroke="#5f8a3a" stroke-width="1"/></g>
+<g transform="translate(0 24)"><rect x="56" y="110" width="46" height="46" fill="url(#hatch)" stroke="#5f8a3a" stroke-width="1"/></g>
+<g transform="translate(0 24)"><rect x="102" y="110" width="46" height="46" fill="#85b156" stroke="#5f8a3a" stroke-width="1"/></g>
+<g transform="translate(0 24)"><rect x="148" y="110" width="46" height="46" fill="#7aa84d" stroke="#5f8a3a" stroke-width="1"/></g>
+<g transform="translate(0 24)"><rect x="194" y="110" width="46" height="46" fill="#85b156" stroke="#5f8a3a" stroke-width="1"/></g>
+<g transform="translate(0 24)"><rect x="240" y="110" width="46" height="46" fill="#7aa84d" stroke="#5f8a3a" stroke-width="1"/></g>
+<g transform="translate(0 24)"><rect x="286" y="110" width="46" height="46" fill="#85b156" stroke="#5f8a3a" stroke-width="1"/></g>
+<g transform="translate(0 24)"><rect x="332" y="110" width="46" height="46" fill="#7aa84d" stroke="#5f8a3a" stroke-width="1"/></g>
+<g transform="translate(0 24)"><rect x="378" y="110" width="46" height="46" fill="url(#hatch)" stroke="#5f8a3a" stroke-width="1"/></g>
+<g transform="translate(0 24)"><rect x="56" y="156" width="46" height="46" fill="#85b156" stroke="#5f8a3a" stroke-width="1"/></g>
+<g transform="translate(0 24)"><rect x="102" y="156" width="46" height="46" fill="#7aa84d" stroke="#5f8a3a" stroke-width="1"/></g>
+<g transform="translate(0 24)"><rect x="148" y="156" width="46" height="46" fill="#85b156" stroke="#5f8a3a" stroke-width="1"/></g>
+<g transform="translate(0 24)"><rect x="194" y="156" width="46" height="46" fill="#7aa84d" stroke="#5f8a3a" stroke-width="1"/></g>
+<g transform="translate(0 24)"><rect x="240" y="156" width="46" height="46" fill="#85b156" stroke="#5f8a3a" stroke-width="1"/></g>
+<g transform="translate(0 24)"><rect x="286" y="156" width="46" height="46" fill="#7aa84d" stroke="#5f8a3a" stroke-width="1"/></g>
+<g transform="translate(0 24)"><rect x="332" y="156" width="46" height="46" fill="#85b156" stroke="#5f8a3a" stroke-width="1"/></g>
+<g transform="translate(0 24)"><rect x="378" y="156" width="46" height="46" fill="#7aa84d" stroke="#5f8a3a" stroke-width="1"/></g>
+<g transform="translate(0 24)"><rect x="56" y="202" width="46" height="46" fill="#7aa84d" stroke="#5f8a3a" stroke-width="1"/></g>
+<g transform="translate(0 24)"><rect x="102" y="202" width="46" height="46" fill="#85b156" stroke="#5f8a3a" stroke-width="1"/></g>
+<g transform="translate(0 24)"><rect x="148" y="202" width="46" height="46" fill="#7aa84d" stroke="#5f8a3a" stroke-width="1"/></g>
+<g transform="translate(0 24)"><rect x="194" y="202" width="46" height="46" fill="#85b156" stroke="#5f8a3a" stroke-width="1"/></g>
+<g transform="translate(0 24)"><rect x="240" y="202" width="46" height="46" fill="#7aa84d" stroke="#5f8a3a" stroke-width="1"/></g>
+<g transform="translate(0 24)"><rect x="286" y="202" width="46" height="46" fill="#85b156" stroke="#5f8a3a" stroke-width="1"/></g>
+<g transform="translate(0 24)"><rect x="332" y="202" width="46" height="46" fill="#7aa84d" stroke="#5f8a3a" stroke-width="1"/></g>
+<g transform="translate(0 24)"><rect x="378" y="202" width="46" height="46" fill="#85b156" stroke="#5f8a3a" stroke-width="1"/></g>
+<g transform="translate(0 24)"><rect x="56" y="248" width="46" height="46" fill="#85b156" stroke="#5f8a3a" stroke-width="1"/></g>
+<g transform="translate(0 24)"><rect x="102" y="248" width="46" height="46" fill="#7aa84d" stroke="#5f8a3a" stroke-width="1"/></g>
+<g transform="translate(0 24)"><rect x="148" y="248" width="46" height="46" fill="#85b156" stroke="#5f8a3a" stroke-width="1"/></g>
+<g transform="translate(0 24)"><rect x="194" y="248" width="46" height="46" fill="#7aa84d" stroke="#5f8a3a" stroke-width="1"/></g>
+<g transform="translate(0 24)"><rect x="240" y="248" width="46" height="46" fill="#85b156" stroke="#5f8a3a" stroke-width="1"/></g>
+<g transform="translate(0 24)"><rect x="286" y="248" width="46" height="46" fill="#7aa84d" stroke="#5f8a3a" stroke-width="1"/></g>
+<g transform="translate(0 24)"><rect x="332" y="248" width="46" height="46" fill="#85b156" stroke="#5f8a3a" stroke-width="1"/></g>
+<g transform="translate(0 24)"><rect x="378" y="248" width="46" height="46" fill="#7aa84d" stroke="#5f8a3a" stroke-width="1"/></g>
+<g transform="translate(0 24)"><rect x="56" y="294" width="46" height="46" fill="#7aa84d" stroke="#5f8a3a" stroke-width="1"/></g>
+<g transform="translate(0 24)"><rect x="102" y="294" width="46" height="46" fill="#85b156" stroke="#5f8a3a" stroke-width="1"/></g>
+<g transform="translate(0 24)"><rect x="148" y="294" width="46" height="46" fill="#7aa84d" stroke="#5f8a3a" stroke-width="1"/></g>
+<g transform="translate(0 24)"><rect x="194" y="294" width="46" height="46" fill="#85b156" stroke="#5f8a3a" stroke-width="1"/></g>
+<g transform="translate(0 24)"><rect x="240" y="294" width="46" height="46" fill="#7aa84d" stroke="#5f8a3a" stroke-width="1"/></g>
+<g transform="translate(0 24)"><rect x="286" y="294" width="46" height="46" fill="#85b156" stroke="#5f8a3a" stroke-width="1"/></g>
+<g transform="translate(0 24)"><rect x="332" y="294" width="46" height="46" fill="#7aa84d" stroke="#5f8a3a" stroke-width="1"/></g>
+<g transform="translate(0 24)"><rect x="378" y="294" width="46" height="46" fill="#85b156" stroke="#5f8a3a" stroke-width="1"/></g>
+<g transform="translate(0 24)"><rect x="56" y="340" width="46" height="46" fill="url(#hatch)" stroke="#5f8a3a" stroke-width="1"/></g>
+<g transform="translate(0 24)"><rect x="102" y="340" width="46" height="46" fill="#7aa84d" stroke="#5f8a3a" stroke-width="1"/></g>
+<g transform="translate(0 24)"><rect x="148" y="340" width="46" height="46" fill="#85b156" stroke="#5f8a3a" stroke-width="1"/></g>
+<g transform="translate(0 24)"><rect x="194" y="340" width="46" height="46" fill="#7aa84d" stroke="#5f8a3a" stroke-width="1"/></g>
+<g transform="translate(0 24)"><rect x="240" y="340" width="46" height="46" fill="#85b156" stroke="#5f8a3a" stroke-width="1"/></g>
+<g transform="translate(0 24)"><rect x="286" y="340" width="46" height="46" fill="#7aa84d" stroke="#5f8a3a" stroke-width="1"/></g>
+<g transform="translate(0 24)"><rect x="332" y="340" width="46" height="46" fill="#85b156" stroke="#5f8a3a" stroke-width="1"/></g>
+<g transform="translate(0 24)"><rect x="378" y="340" width="46" height="46" fill="url(#hatch)" stroke="#5f8a3a" stroke-width="1"/></g>
+<g transform="translate(0 24)"><rect x="56" y="386" width="46" height="46" fill="#7aa84d" stroke="#5f8a3a" stroke-width="1"/></g>
+<g transform="translate(0 24)"><rect x="102" y="386" width="46" height="46" fill="url(#hatch)" stroke="#5f8a3a" stroke-width="1"/></g>
+<g transform="translate(0 24)"><rect x="148" y="386" width="46" height="46" fill="#7aa84d" stroke="#5f8a3a" stroke-width="1"/></g>
+<g transform="translate(0 24)"><rect x="194" y="386" width="46" height="46" fill="#85b156" stroke="#5f8a3a" stroke-width="1"/></g>
+<g transform="translate(0 24)"><rect x="240" y="386" width="46" height="46" fill="#7aa84d" stroke="#5f8a3a" stroke-width="1"/></g>
+<g transform="translate(0 24)"><rect x="286" y="386" width="46" height="46" fill="#85b156" stroke="#5f8a3a" stroke-width="1"/></g>
+<g transform="translate(0 24)"><rect x="332" y="386" width="46" height="46" fill="url(#hatch)" stroke="#5f8a3a" stroke-width="1"/></g>
+<g transform="translate(0 24)"><rect x="378" y="386" width="46" height="46" fill="#85b156" stroke="#5f8a3a" stroke-width="1"/></g>
+<g transform="translate(0 24)"><rect x="196" y="204" width="88" height="88" fill="none" stroke="#e8ce91" stroke-width="3" stroke-dasharray="7 5" rx="6"/></g>
+<g transform="translate(0 24)"><circle cx="240" cy="248" r="11" fill="#f5d76e" stroke="#8a6d1f" stroke-width="3"/><circle cx="237" cy="245" r="3.5" fill="#fff6c8"/></g>
+<g transform="translate(0 24)"><path d="M156.0 326.0 Q154.0 311.0 165.0 305.0 Q177.0 300.0 185.0 312.0 Q190.0 324.0 180.0 328.0 Z" fill="#6fa3a6" stroke="#2b4d57" stroke-width="2.5"/><path d="M164.0 311.0 Q171.0 307.0 178.0 312.0" stroke="#b6dcd9" stroke-width="2" fill="none"/></g>
+<g transform="translate(0 24)"><path d="M294.0 188.0 Q292.0 173.0 303.0 167.0 Q315.0 162.0 323.0 174.0 Q328.0 186.0 318.0 190.0 Z" fill="#6fa3a6" stroke="#2b4d57" stroke-width="2.5"/><path d="M302.0 173.0 Q309.0 169.0 316.0 174.0" stroke="#b6dcd9" stroke-width="2" fill="none"/></g>
+<g transform="translate(0 24)"><path d="M110.0 234.0 Q108.0 219.0 119.0 213.0 Q131.0 208.0 139.0 220.0 Q144.0 232.0 134.0 236.0 Z" fill="#6fa3a6" stroke="#2b4d57" stroke-width="2.5"/><path d="M118.0 219.0 Q125.0 215.0 132.0 220.0" stroke="#b6dcd9" stroke-width="2" fill="none"/></g>
+<g transform="translate(0 24)"><path d="M340.0 326.0 Q338.0 311.0 349.0 305.0 Q361.0 300.0 369.0 312.0 Q374.0 324.0 364.0 328.0 Z" fill="#6fa3a6" stroke="#2b4d57" stroke-width="2.5"/><path d="M348.0 311.0 Q355.0 307.0 362.0 312.0" stroke="#b6dcd9" stroke-width="2" fill="none"/></g>
+<g transform="translate(0 24)"><circle cx="79.0" cy="87.0" r="16" fill="#e74c3c" stroke="#161c2e" stroke-width="3"/><text x="79.0" y="92.0" fill="#fff" font-size="15" font-weight="bold" text-anchor="middle">C</text></g>
+<g transform="translate(0 24)"><circle cx="401.0" cy="409.0" r="16" fill="#3498db" stroke="#161c2e" stroke-width="3"/><text x="401.0" y="414.0" fill="#fff" font-size="13" font-weight="bold" text-anchor="middle">Az</text></g>
+<g transform="translate(0 24)"><circle cx="401.0" cy="87.0" r="16" fill="#9b59b6" stroke="#161c2e" stroke-width="3"/><text x="401.0" y="92.0" fill="#fff" font-size="15" font-weight="bold" text-anchor="middle">V</text></g>
+<g transform="translate(0 24)"><circle cx="79.0" cy="409.0" r="16" fill="#f39c12" stroke="#161c2e" stroke-width="3"/><text x="79.0" y="414.0" fill="#fff" font-size="13" font-weight="bold" text-anchor="middle">Am</text></g>
+<g transform="translate(0 24)"><rect x="56" y="64" width="368" height="368" fill="none" stroke="#d8cfa8" stroke-width="2" opacity="0.6"/></g>
+<g transform="translate(0 24)"><circle cx="472" cy="84" r="14" fill="#e74c3c" stroke="#161c2e" stroke-width="3"/><text x="472" y="89" fill="#fff" font-size="13" font-weight="bold" text-anchor="middle">C</text></g>
+<g transform="translate(0 24)"><text x="500" y="84" fill="#d8cfa8" font-size="14" font-weight="bold">Spawn corners</text></g>
+<g transform="translate(0 24)"><text x="500" y="102" fill="#8fa39e" font-size="12">Crimson (0,0)  Violet (7,0)</text></g>
+<g transform="translate(0 24)"><text x="500" y="118" fill="#8fa39e" font-size="12">Amber (0,7)   Azure (7,7)</text></g>
+<g transform="translate(0 24)"><rect x="458" y="150" width="28" height="28" fill="url(#hatch)" stroke="#5f8a3a"/></g>
+<g transform="translate(0 24)"><text x="500" y="164" fill="#d8cfa8" font-size="14" font-weight="bold">Spawn exits</text></g>
+<g transform="translate(0 24)"><text x="500" y="182" fill="#8fa39e" font-size="12">always kept free of rocks,</text></g>
+<g transform="translate(0 24)"><text x="500" y="198" fill="#8fa39e" font-size="12">so nobody starts boxed in</text></g>
+<g transform="translate(0 24)"><path d="M458 254 Q456 238 467 233 Q479 228 486 240 Q490 252 480 256 Z" fill="#6fa3a6" stroke="#2b4d57" stroke-width="2.5"/></g>
+<g transform="translate(0 24)"><text x="500" y="244" fill="#d8cfa8" font-size="14" font-weight="bold">Rocks  (4, random)</text></g>
+<g transform="translate(0 24)"><text x="500" y="262" fill="#8fa39e" font-size="12">impassable; never split</text></g>
+<g transform="translate(0 24)"><text x="500" y="278" fill="#8fa39e" font-size="12">the board into pieces</text></g>
+<g transform="translate(0 24)"><rect x="458" y="310" width="28" height="28" fill="none" stroke="#e8ce91" stroke-width="3" stroke-dasharray="6 4" rx="5"/><circle cx="472" cy="324" r="7" fill="#f5d76e" stroke="#8a6d1f" stroke-width="2"/></g>
+<g transform="translate(0 24)"><text x="500" y="324" fill="#d8cfa8" font-size="14" font-weight="bold">Gold  (1)</text></g>
+<g transform="translate(0 24)"><text x="500" y="342" fill="#8fa39e" font-size="12">placed where walking distance</text></g>
+<g transform="translate(0 24)"><text x="500" y="358" fill="#8fa39e" font-size="12">is fairest for all four spawns</text></g>
+<g transform="translate(0 24)"><text x="500" y="374" fill="#8fa39e" font-size="12">(almost always the center)</text></g>
+</svg>

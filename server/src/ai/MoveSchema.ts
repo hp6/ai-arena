@@ -1,3 +1,5 @@
+import { MAX_TURN_ACTIONS } from "@ai-arena/shared";
+
 export const moveResponseSchema = {
   type: "json_schema" as const,
   json_schema: {
@@ -12,9 +14,9 @@ export const moveResponseSchema = {
         },
         actions: {
           type: "array",
-          description: "List of actions to take this turn. You have 2 AP. Move costs 1 AP, attack costs 1 AP.",
+          description: "Actions in order. Each costs 1 AP. List one action per AP you have, plus extras only if you expect to earn AP this turn from a kill or the gold. Actions beyond your AP are skipped at no cost.",
           minItems: 1,
-          maxItems: 2,
+          maxItems: MAX_TURN_ACTIONS,
           items: {
             type: "object",
             properties: {

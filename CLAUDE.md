@@ -37,10 +37,11 @@ Monorepo with npm workspaces: `shared/`, `client/`, `server/`.
 
 ### API Endpoints
 
-- `POST /api/games` — Create new game, start background AI loop, return game metadata
+- `POST /api/games` — Create new game, start background AI loop, return game metadata. Returns 409 with `runningGameId` if a game is already running (one game at a time)
 - `GET /api/games` — List recent games (id, status, fighters, timestamps)
 - `GET /api/games/:id` — Get game metadata (fighters, arena, status, winner)
 - `GET /api/games/:id/frames?after=N` — Poll for frames after index N (returns new frames + game status)
+- `GET /api/stats` — Totals, per-model leaderboard, and match history (computed from all games and frames)
 
 ### Database
 
@@ -70,6 +71,8 @@ cd server && npx tsc --noEmit
 ## Key Design Decisions
 
 - 2 AP per turn: move costs 1, attack costs 1. Adjacent cells only for both.
+- Kills and gold permanently add +1 AP per turn (usable immediately if the AI planned extra actions); kills also heal 50% max HP (no overheal). One gold per game, placed on the cell most equidistant from all spawns
+- The AI plans its whole turn in one call and may list more actions than its AP for expected bonuses; actions beyond available AP are skipped at no cost
 - Sequential turns with **randomized turn order each round** (shuffled at round start)
 - Server is authoritative — all move validation happens server-side
 - **Games run in the background** — client is purely a spectator that polls for frames

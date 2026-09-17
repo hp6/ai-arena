@@ -1,5 +1,7 @@
 import Phaser from "phaser";
 import { CELL_SIZE, MAX_AP, GRID_WIDTH } from "@ai-arena/shared";
+
+const DOT_Y = 46;
 import { COLORS } from "../utils/colors";
 
 export const WARRIOR_COLORS = ["red", "blue", "purple", "yellow", "black"] as const;
@@ -69,7 +71,7 @@ export class Fighter {
     const barY = 28;
 
     this.hpBarBg = scene.add.rectangle(0, barY, barWidth, barHeight, COLORS.HP_BAR_BG);
-    this.hpBarFill = scene.add.rectangle(0, barY, barWidth, barHeight, COLORS.HP_BAR_FILL);
+    this.hpBarFill = scene.add.rectangle(-barWidth / 2, barY, barWidth, barHeight, COLORS.HP_BAR_FILL).setOrigin(0, 0.5);
     this.hpBarBorder = scene.add.rectangle(0, barY, barWidth + 2, barHeight + 2);
     this.hpBarBorder.setStrokeStyle(1, 0x161c2e);
 
@@ -81,13 +83,6 @@ export class Fighter {
     });
     this.hpText.setOrigin(0.5);
 
-    // AP dots below HP
-    const dotY = barY + 18;
-    for (let i = 0; i < MAX_AP; i++) {
-      const dotX = (i - (MAX_AP - 1) / 2) * 10;
-      const dot = scene.add.circle(dotX, dotY, 3, 0xe8ce91);
-      this.apDots.push(dot);
-    }
 
     this.container = scene.add.container(worldX, worldY, [
       this.activeIndicator,
@@ -97,8 +92,8 @@ export class Fighter {
       this.hpBarFill,
       this.hpBarBorder,
       this.hpText,
-      ...this.apDots,
     ]);
+    this.setAp(MAX_AP);
   }
 
   setPosition(worldX: number, worldY: number, gx: number, gy: number) {
@@ -121,14 +116,23 @@ export class Fighter {
     const ratio = this._hp / this._maxHp;
     const barWidth = CELL_SIZE * 0.7;
 
-    this.hpBarFill.width = barWidth * ratio;
-    this.hpBarFill.x = -(barWidth * (1 - ratio)) / 2;
+    // setSize (not .width) so Phaser recomputes the rectangle's geometry; left origin keeps it anchored to the bar start
+    this.hpBarFill.setSize(barWidth * ratio, this.hpBarFill.height);
     this.hpBarFill.fillColor = ratio > 0.3 ? COLORS.HP_BAR_FILL : COLORS.HP_BAR_LOW;
     this.hpText.setText(`${this._hp}/${this._maxHp}`);
   }
 
-  setAp(ap: number) {
+  setAp(ap: number, maxAp: number = MAX_AP) {
     this._ap = ap;
+    const count = Math.max(maxAp, ap);
+    while (this.apDots.length < count) {
+      const dot = this.scene.add.circle(0, DOT_Y, 3, 0xe8ce91);
+      this.apDots.push(dot);
+      this.container.add(dot);
+    }
+    while (this.apDots.length > count) this.apDots.pop()!.destroy();
+    this.apDots.forEach((dot, i) => (dot.x = (i - (count - 1) / 2) * 10));
+
     for (let i = 0; i < this.apDots.length; i++) {
       this.apDots[i].fillColor = i < ap ? 0xe8ce91 : 0x455a4b;
       this.apDots[i].alpha = i < ap ? 1 : 0.4;

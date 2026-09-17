@@ -27,6 +27,8 @@ export interface ArenaConfig {
   height: number;
   cellSize: number;
   obstacles: Position[];
+  /** Where the gold started; absent in games from before gold existed. */
+  gold?: Position | null;
 }
 
 export interface TurnLogEntry {
@@ -34,7 +36,7 @@ export interface TurnLogEntry {
   fighterId: string;
   description: string;
   details: string;
-  actionType: "start" | "move" | "attack" | "wait" | "round_start" | "elimination" | "victory";
+  actionType: "start" | "move" | "attack" | "wait" | "pickup" | "round_start" | "elimination" | "victory";
 }
 
 /** A fighter's visual state at one point in the replay. */
@@ -43,6 +45,8 @@ export interface FighterSnapshot {
   gridY: number;
   hp: number;
   ap: number;
+  /** AP per turn; absent in frames from before bonuses existed. */
+  maxAp?: number;
   alive: boolean;
 }
 
@@ -57,6 +61,7 @@ export interface GameFrame {
   round: number;
   logEntry: TurnLogEntry;
   chatMessages: ChatMessage[];
+  gold?: Position | null;
 }
 
 export interface GameState {
@@ -66,6 +71,7 @@ export interface GameState {
   turnOrder: string[];
   fighters: FighterState[];
   arena: ArenaConfig;
+  gold: Position | null;
   log: TurnLogEntry[];
   chat: ChatMessage[];
   status: "waiting" | "in_progress" | "finished";

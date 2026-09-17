@@ -1,5 +1,6 @@
 import Phaser from "phaser";
 import { WARRIOR_COLORS } from "../objects/Fighter";
+import { loadMutePreference } from "../utils/sound";
 
 export class BootScene extends Phaser.Scene {
   constructor() {
@@ -50,6 +51,15 @@ export class BootScene extends Phaser.Scene {
       this.load.image(`rock${i}`, `assets/decorations/Rock${i}.png`);
     }
 
+    this.load.audio("footstep", "assets/sounds/footstep.wav");
+    this.load.audio("bg_music", "assets/sounds/bg_music.mp3");
+    this.load.audio("sword_clash", "assets/sounds/sword_clash.wav");
+
+    this.load.spritesheet("gold", "assets/resources/Gold_Resource_Highlight.png", {
+      frameWidth: 128,
+      frameHeight: 128,
+    });
+
     for (const color of WARRIOR_COLORS) {
       for (const [anim, file] of [["idle", "Idle"], ["attack1", "Attack1"], ["attack2", "Attack2"]]) {
         this.load.spritesheet(`warrior_${anim}_${color}`, `assets/units/${color}/Warrior_${file}.png`, {
@@ -61,6 +71,14 @@ export class BootScene extends Phaser.Scene {
   }
 
   create() {
+    this.anims.create({
+      key: "gold_shine",
+      frames: this.anims.generateFrameNumbers("gold", {}),
+      frameRate: 10,
+      repeat: -1,
+      repeatDelay: 1200,
+    });
+
     for (const color of WARRIOR_COLORS) {
       this.anims.create({
         key: `warrior_idle_${color}`,
@@ -77,6 +95,9 @@ export class BootScene extends Phaser.Scene {
         });
       }
     }
+    loadMutePreference(this);
+    // The sound manager is game-wide, so the music keeps looping across scene changes; browsers start it on the first click
+    this.sound.play("bg_music", { loop: true, volume: 0.3 });
     this.scene.start("Menu");
   }
 }

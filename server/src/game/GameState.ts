@@ -38,21 +38,50 @@ export function randomObstacles(count: number, spawns: Position[]): Position[] {
 
 function isBoardConnected(blocked: Set<string>): boolean {
   const open = GRID_WIDTH * GRID_HEIGHT - blocked.size;
-  const start = DEFAULT_SPAWN_POSITIONS[0];
-  const seen = new Set([`${start.x},${start.y}`]);
+  return walkDistances(DEFAULT_SPAWN_POSITIONS[0], blocked).size === open;
+}
+
+function walkDistances(start: Position, blocked: Set<string>): Map<string, number> {
+  const dist = new Map([[`${start.x},${start.y}`, 0]]);
   const queue: Position[] = [start];
-  while (queue.length > 0) {
-    const { x, y } = queue.pop()!;
+  for (let i = 0; i < queue.length; i++) {
+    const { x, y } = queue[i];
+    const d = dist.get(`${x},${y}`)!;
     for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
       const nx = x + dx;
       const ny = y + dy;
       const k = `${nx},${ny}`;
-      if (nx < 0 || ny < 0 || nx >= GRID_WIDTH || ny >= GRID_HEIGHT || blocked.has(k) || seen.has(k)) continue;
-      seen.add(k);
+      if (nx < 0 || ny < 0 || nx >= GRID_WIDTH || ny >= GRID_HEIGHT || blocked.has(k) || dist.has(k)) continue;
+      dist.set(k, d + 1);
       queue.push({ x: nx, y: ny });
     }
   }
-  return seen.size === open;
+  return dist;
+}
+
+// Gold goes on the free cell whose walking distance is most equal across all spawns, so no one gets a head start
+export function placeGold(obstacles: Position[], spawns: Position[]): Position {
+  const blocked = new Set(obstacles.map((o) => `${o.x},${o.y}`));
+  const spawnKeys = new Set(spawns.map((s) => `${s.x},${s.y}`));
+  const fromSpawn = spawns.map((s) => walkDistances(s, blocked));
+
+  let best: Position[] = [];
+  let bestScore = Infinity;
+  for (let y = 0; y < GRID_HEIGHT; y++) {
+    for (let x = 0; x < GRID_WIDTH; x++) {
+      const k = `${x},${y}`;
+      if (blocked.has(k) || spawnKeys.has(k)) continue;
+      const ds = fromSpawn.map((m) => m.get(k) ?? Infinity);
+      const score = Math.max(...ds) - Math.min(...ds);
+      if (score < bestScore) {
+        bestScore = score;
+        best = [{ x, y }];
+      } else if (score === bestScore) {
+        best.push({ x, y });
+      }
+    }
+  }
+  return best[Math.floor(Math.random() * best.length)];
 }
 
 export function createGame(): GameState {
@@ -79,6 +108,7 @@ export function createGame(): GameState {
     cellSize: CELL_SIZE,
     obstacles: randomObstacles(OBSTACLE_COUNT, DEFAULT_SPAWN_POSITIONS),
   };
+  arena.gold = placeGold(arena.obstacles, DEFAULT_SPAWN_POSITIONS);
 
   const turnOrder = shuffleOrder(fighters);
 
@@ -89,6 +119,7 @@ export function createGame(): GameState {
     turnOrder,
     fighters,
     arena,
+    gold: { ...arena.gold },
     log: [
       {
         round: 0,

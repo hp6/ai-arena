@@ -1,5 +1,17 @@
 import type { GameState } from "@ai-arena/shared";
-import { MAX_AP, MOVE_COST, ATTACK_COST, ATTACK_RANGE, BASE_DAMAGE, DAMAGE_VARIANCE, MAX_CHAT_LENGTH } from "@ai-arena/shared";
+import {
+  MAX_AP,
+  MOVE_COST,
+  ATTACK_COST,
+  ATTACK_RANGE,
+  BASE_DAMAGE,
+  DAMAGE_VARIANCE,
+  MAX_CHAT_LENGTH,
+  KILL_BONUS_AP,
+  KILL_HEAL_RATIO,
+  GOLD_BONUS_AP,
+  MAX_TURN_ACTIONS,
+} from "@ai-arena/shared";
 
 export function buildSystemPrompt(state: GameState, fighterId: string): string {
   const fighter = state.fighters.find((f) => f.id === fighterId)!;
@@ -8,12 +20,15 @@ export function buildSystemPrompt(state: GameState, fighterId: string): string {
 
 ## RULES
 - The arena is a ${state.arena.width}x${state.arena.height} grid (0-indexed, x=column, y=row)
-- You have ${MAX_AP} Action Points (AP) per turn
+- Every fighter starts with ${MAX_AP} Action Points (AP) per turn
 - MOVE: costs ${MOVE_COST} AP, move to one adjacent cell (up/down/left/right, no diagonals)
 - ATTACK: costs ${ATTACK_COST} AP, attack a fighter on an adjacent cell (manhattan distance ${ATTACK_RANGE})
 - WAIT: costs 1 AP, do nothing
 - Attacks deal ${BASE_DAMAGE} ± ${DAMAGE_VARIANCE} damage
 - You cannot move onto obstacles or occupied cells
+- KILL REWARD: eliminating a fighter permanently gives you +${KILL_BONUS_AP} AP per turn and heals ${Math.round(KILL_HEAL_RATIO * 100)}% of your max HP (never above max)
+- GOLD: there is one gold piece on the map. Moving onto its cell eats it and permanently gives you +${GOLD_BONUS_AP} AP per turn. Once eaten it is gone
+- Bonus AP also counts immediately, but you plan the whole turn up front: if an action should earn AP (a killing blow or stepping on the gold), list the follow-up actions after it (up to ${MAX_TURN_ACTIONS} actions). Actions run in order and any beyond your AP are skipped at no cost
 - You cannot attack yourself or dead fighters
 - Turn order is randomized each round
 
@@ -38,14 +53,14 @@ export function buildUserPrompt(state: GameState, fighterId: string): string {
 Fighter: ${fighter.name} (${fighter.id})
 Position: (${fighter.position.x}, ${fighter.position.y})
 HP: ${fighter.hp}/${fighter.maxHp}
-AP: ${MAX_AP} (full)
+AP: ${fighter.maxAp} this turn (${fighter.maxAp} per turn)
 
 ## ENEMIES`;
 
   for (const enemy of enemies) {
     const dist = Math.abs(fighter.position.x - enemy.position.x) + Math.abs(fighter.position.y - enemy.position.y);
     const adjacent = dist <= ATTACK_RANGE ? "YES - CAN ATTACK" : "no";
-    prompt += `\n- ${enemy.name} (${enemy.id}): pos (${enemy.position.x},${enemy.position.y}), HP ${enemy.hp}/${enemy.maxHp}, distance ${dist}, adjacent: ${adjacent}`;
+    prompt += `\n- ${enemy.name} (${enemy.id}): pos (${enemy.position.x},${enemy.position.y}), HP ${enemy.hp}/${enemy.maxHp}, AP per turn ${enemy.maxAp}, distance ${dist}, adjacent: ${adjacent}`;
   }
 
   // Show dead fighters too
@@ -53,6 +68,10 @@ AP: ${MAX_AP} (full)
   if (dead.length > 0) {
     prompt += `\n\nEliminated: ${dead.map((f) => f.name).join(", ")}`;
   }
+
+  prompt += state.gold
+    ? `\n\n## GOLD\n- (${state.gold.x}, ${state.gold.y}), distance ${Math.abs(fighter.position.x - state.gold.x) + Math.abs(fighter.position.y - state.gold.y)}: move onto it for +${GOLD_BONUS_AP} AP per turn`
+    : `\n\n## GOLD\n- Already eaten`;
 
   prompt += `\n\n## OBSTACLES (impassable cells)`;
   for (const obs of state.arena.obstacles) {
@@ -71,7 +90,7 @@ AP: ${MAX_AP} (full)
   prompt += `\n\n## ROUND ${state.round}
 ${state.fighters.filter((f) => f.isAlive).length} fighters remaining.
 
-Make your move. Return a chat message and your ${MAX_AP} actions.`;
+Make your move. Return a chat message and your actions (${fighter.maxAp}, plus extras only for AP you expect to earn this turn).`;
 
   return prompt;
 }

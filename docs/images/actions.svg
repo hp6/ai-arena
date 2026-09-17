@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="860" height="356" viewBox="0 0 860 356" font-family="DejaVu Sans Mono, Menlo, Consolas, monospace">
+<rect width="860" height="356" rx="14" fill="#161c2e"/>
+<text x="30" y="34" fill="#e8ce91" font-size="18" font-weight="bold">REACH</text>
+<text x="330" y="34" fill="#e8ce91" font-size="18" font-weight="bold">A TURN, IN ACTION POINTS</text>
+<rect x="40" y="60" width="46" height="46" fill="#85b156" stroke="#5f8a3a"/>
+<rect x="86" y="60" width="46" height="46" fill="#7aa84d" stroke="#5f8a3a"/>
+<rect x="132" y="60" width="46" height="46" fill="#85b156" stroke="#5f8a3a"/>
+<rect x="178" y="60" width="46" height="46" fill="#7aa84d" stroke="#5f8a3a"/>
+<rect x="224" y="60" width="46" height="46" fill="#85b156" stroke="#5f8a3a"/>
+<rect x="40" y="106" width="46" height="46" fill="#7aa84d" stroke="#5f8a3a"/>
+<rect x="86" y="106" width="46" height="46" fill="#85b156" stroke="#5f8a3a"/>
+<rect x="132" y="106" width="46" height="46" fill="#7aa84d" stroke="#5f8a3a"/>
+<rect x="178" y="106" width="46" height="46" fill="#85b156" stroke="#5f8a3a"/>
+<rect x="224" y="106" width="46" height="46" fill="#7aa84d" stroke="#5f8a3a"/>
+<rect x="40" y="152" width="46" height="46" fill="#85b156" stroke="#5f8a3a"/>
+<rect x="86" y="152" width="46" height="46" fill="#7aa84d" stroke="#5f8a3a"/>
+<rect x="132" y="152" width="46" height="46" fill="#85b156" stroke="#5f8a3a"/>
+<rect x="178" y="152" width="46" height="46" fill="#7aa84d" stroke="#5f8a3a"/>
+<rect x="224" y="152" width="46" height="46" fill="#85b156" stroke="#5f8a3a"/>
+<rect x="40" y="198" width="46" height="46" fill="#7aa84d" stroke="#5f8a3a"/>
+<rect x="86" y="198" width="46" height="46" fill="#85b156" stroke="#5f8a3a"/>
+<rect x="132" y="198" width="46" height="46" fill="#7aa84d" stroke="#5f8a3a"/>
+<rect x="178" y="198" width="46" height="46" fill="#85b156" stroke="#5f8a3a"/>
+<rect x="224" y="198" width="46" height="46" fill="#7aa84d" stroke="#5f8a3a"/>
+<rect x="40" y="244" width="46" height="46" fill="#85b156" stroke="#5f8a3a"/>
+<rect x="86" y="244" width="46" height="46" fill="#7aa84d" stroke="#5f8a3a"/>
+<rect x="132" y="244" width="46" height="46" fill="#85b156" stroke="#5f8a3a"/>
+<rect x="178" y="244" width="46" height="46" fill="#7aa84d" stroke="#5f8a3a"/>
+<rect x="224" y="244" width="46" height="46" fill="#85b156" stroke="#5f8a3a"/>
+<rect x="181" y="155" width="40" height="40" fill="#b6f25c" opacity="0.55" rx="5"/>
+<line x1="169.0" y1="175.0" x2="189.0" y2="175.0" stroke="#161c2e" stroke-width="3"/>
+<rect x="89" y="155" width="40" height="40" fill="#b6f25c" opacity="0.55" rx="5"/>
+<line x1="141.0" y1="175.0" x2="121.0" y2="175.0" stroke="#161c2e" stroke-width="3"/>
+<rect x="135" y="201" width="40" height="40" fill="#b6f25c" opacity="0.55" rx="5"/>
+<line x1="155.0" y1="189.0" x2="155.0" y2="209.0" stroke="#161c2e" stroke-width="3"/>
+<rect x="135" y="109" width="40" height="40" fill="#b6f25c" opacity="0.55" rx="5"/>
+<line x1="155.0" y1="161.0" x2="155.0" y2="141.0" stroke="#161c2e" stroke-width="3"/>
+<path d="M193.0 213.0 L209.0 229.0 M209.0 213.0 L193.0 229.0" stroke="#e76161" stroke-width="4" stroke-linecap="round"/>
+<path d="M101.0 213.0 L117.0 229.0 M117.0 213.0 L101.0 229.0" stroke="#e76161" stroke-width="4" stroke-linecap="round"/>
+<path d="M193.0 121.0 L209.0 137.0 M209.0 121.0 L193.0 137.0" stroke="#e76161" stroke-width="4" stroke-linecap="round"/>
+<path d="M101.0 121.0 L117.0 137.0 M117.0 121.0 L101.0 137.0" stroke="#e76161" stroke-width="4" stroke-linecap="round"/>
+<circle cx="155.0" cy="175.0" r="15" fill="#9b59b6" stroke="#161c2e" stroke-width="3"/><text x="155.0" y="180.0" fill="#fff" font-size="15" font-weight="bold" text-anchor="middle">V</text>
+<text x="40" y="312" fill="#d8cfa8" font-size="12">Move &amp; attack: 1 step up/down/left/right</text>
+<text x="40" y="328" fill="#e76161" font-size="12">No diagonals</text>
+<text x="330" y="74" fill="#d8cfa8" font-size="13" font-weight="bold">Normal turn (2 AP)</text>
+<rect x="330" y="80" width="150" height="46" rx="8" fill="#d8cfa8"/><text x="405.0" y="100" fill="#161c2e" font-size="13" font-weight="bold" text-anchor="middle">MOVE</text><text x="405.0" y="117" fill="#161c2e" font-size="11" text-anchor="middle">1 AP</text>
+<line x1="482" y1="103" x2="496" y2="103" stroke="#8fa39e" stroke-width="2"/><path d="M494 98 L502 103 L494 108 Z" fill="#8fa39e"/>
+<rect x="502" y="80" width="150" height="46" rx="8" fill="#e76161"/><text x="577.0" y="100" fill="#161c2e" font-size="13" font-weight="bold" text-anchor="middle">ATTACK</text><text x="577.0" y="117" fill="#161c2e" font-size="11" text-anchor="middle">1 AP</text>
+<text x="330" y="154" fill="#d8cfa8" font-size="13" font-weight="bold">Killing blow (plan ahead!)</text>
+<rect x="330" y="160" width="150" height="46" rx="8" fill="#e76161"/><text x="405.0" y="180" fill="#161c2e" font-size="13" font-weight="bold" text-anchor="middle">ATTACK</text><text x="405.0" y="197" fill="#161c2e" font-size="11" text-anchor="middle">kills → +1 AP</text>
+<line x1="482" y1="183" x2="496" y2="183" stroke="#8fa39e" stroke-width="2"/><path d="M494 178 L502 183 L494 188 Z" fill="#8fa39e"/>
+<rect x="502" y="160" width="150" height="46" rx="8" fill="#e76161"/><text x="577.0" y="180" fill="#161c2e" font-size="13" font-weight="bold" text-anchor="middle">ATTACK</text><text x="577.0" y="197" fill="#161c2e" font-size="11" text-anchor="middle">1 AP</text>
+<line x1="654" y1="183" x2="668" y2="183" stroke="#8fa39e" stroke-width="2"/><path d="M666 178 L674 183 L666 188 Z" fill="#8fa39e"/>
+<rect x="674" y="160" width="150" height="46" rx="8" fill="#b6f25c"/><text x="749.0" y="180" fill="#161c2e" font-size="13" font-weight="bold" text-anchor="middle">MOVE</text><text x="749.0" y="197" fill="#161c2e" font-size="11" text-anchor="middle">bonus AP</text>
+<text x="850" y="188" fill="#8fa39e" font-size="11"></text>
+<text x="330" y="234" fill="#d8cfa8" font-size="13" font-weight="bold">Grab the gold</text>
+<rect x="330" y="240" width="150" height="46" rx="8" fill="#e8ce91"/><text x="405.0" y="260" fill="#161c2e" font-size="13" font-weight="bold" text-anchor="middle">MOVE</text><text x="405.0" y="277" fill="#161c2e" font-size="11" text-anchor="middle">onto gold → +1 AP</text>
+<line x1="482" y1="263" x2="496" y2="263" stroke="#8fa39e" stroke-width="2"/><path d="M494 258 L502 263 L494 268 Z" fill="#8fa39e"/>
+<rect x="502" y="240" width="150" height="46" rx="8" fill="#d8cfa8"/><text x="577.0" y="260" fill="#161c2e" font-size="13" font-weight="bold" text-anchor="middle">MOVE</text><text x="577.0" y="277" fill="#161c2e" font-size="11" text-anchor="middle">1 AP</text>
+<line x1="654" y1="263" x2="668" y2="263" stroke="#8fa39e" stroke-width="2"/><path d="M666 258 L674 263 L666 268 Z" fill="#8fa39e"/>
+<rect x="674" y="240" width="150" height="46" rx="8" fill="#b6f25c"/><text x="749.0" y="260" fill="#161c2e" font-size="13" font-weight="bold" text-anchor="middle">ATTACK</text><text x="749.0" y="277" fill="#161c2e" font-size="11" text-anchor="middle">bonus AP</text>
+<text x="850" y="268" fill="#8fa39e" font-size="11"></text>
+<text x="330" y="336" fill="#8fa39e" font-size="11">Actions run in order. Planned actions beyond your AP are skipped at no cost.</text>
+</svg>

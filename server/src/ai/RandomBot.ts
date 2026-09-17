@@ -1,13 +1,25 @@
 import type { GameState } from "@ai-arena/shared";
 import type { Action } from "@ai-arena/shared";
-import { MAX_AP, MOVE_COST, ATTACK_COST, ATTACK_RANGE, GRID_WIDTH, GRID_HEIGHT } from "@ai-arena/shared";
+import {
+  MOVE_COST,
+  ATTACK_COST,
+  ATTACK_RANGE,
+  GRID_WIDTH,
+  GRID_HEIGHT,
+  BASE_DAMAGE,
+  DAMAGE_VARIANCE,
+  KILL_BONUS_AP,
+  GOLD_BONUS_AP,
+} from "@ai-arena/shared";
 
 export function generateRandomActions(state: GameState, fighterId: string): Action[] {
   const fighter = state.fighters.find((f) => f.id === fighterId);
   if (!fighter || !fighter.isAlive) return [];
 
   const actions: Action[] = [];
-  let ap = MAX_AP;
+  let ap = fighter.maxAp;
+  let gold = state.gold;
+  const planned = new Map(state.fighters.map((f) => [f.id, { hp: f.hp, alive: f.isAlive }]));
   const currentPos = { ...fighter.position };
   const obstacles = new Set(state.arena.obstacles.map((o) => `${o.x},${o.y}`));
 
@@ -16,7 +28,7 @@ export function generateRandomActions(state: GameState, fighterId: string): Acti
     const adjacentEnemies = state.fighters.filter(
       (f) =>
         f.id !== fighterId &&
-        f.isAlive &&
+        planned.get(f.id)!.alive &&
         Math.abs(f.position.x - currentPos.x) + Math.abs(f.position.y - currentPos.y) <= ATTACK_RANGE,
     );
 
@@ -25,12 +37,19 @@ export function generateRandomActions(state: GameState, fighterId: string): Acti
       const target = adjacentEnemies[Math.floor(Math.random() * adjacentEnemies.length)];
       actions.push({ type: "attack", targetId: target.id });
       ap -= ATTACK_COST;
+      const p = planned.get(target.id)!;
+      if (p.hp <= BASE_DAMAGE - DAMAGE_VARIANCE) {
+        p.alive = false;
+        ap += KILL_BONUS_AP;
+      } else {
+        p.hp -= BASE_DAMAGE;
+      }
       continue;
     }
 
     // Otherwise, try to move toward closest enemy
     if (ap >= MOVE_COST) {
-      const aliveEnemies = state.fighters.filter((f) => f.id !== fighterId && f.isAlive);
+      const aliveEnemies = state.fighters.filter((f) => f.id !== fighterId && planned.get(f.id)!.alive);
       if (aliveEnemies.length === 0) {
         actions.push({ type: "wait" });
         ap -= 1;
@@ -84,11 +103,16 @@ export function generateRandomActions(state: GameState, fighterId: string): Acti
         return da - db;
       });
 
-      const dest = validMoves[0];
+      const goldMove = validMoves.find((p) => gold && p.x === gold.x && p.y === gold.y);
+      const dest = goldMove ?? validMoves[0];
       actions.push({ type: "move", targetPosition: dest });
       currentPos.x = dest.x;
       currentPos.y = dest.y;
       ap -= MOVE_COST;
+      if (goldMove) {
+        gold = null;
+        ap += GOLD_BONUS_AP;
+      }
       continue;
     }
 

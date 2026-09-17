@@ -23,6 +23,12 @@ export const FIGHTER_NAMES = ["Crimson", "Azure", "Violet", "Amber"];
 
 export const OBSTACLE_COUNT = 4;
 
+export const KILL_BONUS_AP = 1;
+export const KILL_HEAL_RATIO = 0.5;
+export const GOLD_BONUS_AP = 1;
+// Bonuses permanently raise a fighter's AP per turn, so this is the most AP any fighter can ever have
+export const MAX_TURN_ACTIONS = MAX_AP + GOLD_BONUS_AP + KILL_BONUS_AP * 3;
+
 export const DEFAULT_SPAWN_POSITIONS: { x: number; y: number }[] = [
   { x: 0, y: 0 },
   { x: 7, y: 7 },

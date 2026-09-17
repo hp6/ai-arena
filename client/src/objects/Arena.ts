@@ -73,16 +73,19 @@ export class Arena {
   private gameObjects: Phaser.GameObjects.GameObject[] = [];
   private obstacles: Set<string>;
   private labels: Phaser.GameObjects.Text[] = [];
+  private gold!: Phaser.GameObjects.Sprite;
   readonly layer: Phaser.GameObjects.Layer;
 
   constructor(
     private scene: Phaser.Scene,
     obstaclePositions: { x: number; y: number }[],
+    gold: { x: number; y: number } | null = null,
   ) {
     this.obstacles = new Set(obstaclePositions.map((p) => `${p.x},${p.y}`));
     this.layer = scene.add.layer();
     this.draw();
     this.layer.add([...this.gameObjects, ...this.labels]);
+    this.setGold(gold);
   }
 
   private draw() {
@@ -118,6 +121,9 @@ export class Arena {
       const { x: wx, y: wy } = this.gridToWorld(x, y);
       this.gameObjects.push(this.scene.add.image(wx, wy, `rock${((x * 7 + y * 3) % 4) + 1}`));
     }
+
+    this.gold = this.scene.add.sprite(0, 0, "gold", 0).play("gold_shine");
+    this.gameObjects.push(this.gold);
 
     // Grid lines on 8x8 gameplay area
     const g = this.scene.add.graphics();
@@ -266,6 +272,13 @@ export class Arena {
     this.layer.destroy();
     this.gameObjects = [];
     this.labels = [];
+  }
+
+  setGold(pos: { x: number; y: number } | null) {
+    this.gold.setVisible(pos !== null);
+    if (!pos) return;
+    const { x, y } = this.gridToWorld(pos.x, pos.y);
+    this.gold.setPosition(x, y);
   }
 
   gridToWorld(gridX: number, gridY: number): { x: number; y: number } {
