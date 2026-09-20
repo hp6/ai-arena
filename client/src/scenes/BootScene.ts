@@ -59,7 +59,7 @@ export class BootScene extends Phaser.Scene {
       this.load.image(`cloud${i}`, `assets/decorations/Clouds_0${i}.png`);
     }
 
-    this.load.image("paper_panel", "assets/ui/paper_panel.png");
+    this.load.image("banner_panel", "assets/ui/banner_panel.png");
 
     this.load.spritesheet("gold", "assets/resources/Gold_Resource_Highlight.png", {
       frameWidth: 128,

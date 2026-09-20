@@ -5,12 +5,19 @@ import { COLORS } from "../utils/colors";
 
 const DOT_Y = 46;
 
-// Slice sizes of the assembled paper panel (168x153) from the Tiny Swords UI art
-const PANEL_SLICE = { left: 52, right: 52, top: 44, bottom: 45 };
-const BUBBLE_PAD_X = 30;
-const BUBBLE_PAD_Y = 26;
-const BUBBLE_MAX_TEXT_W = 150;
-const BUBBLE_GAP = 18;
+// Assembled from the Tiny Swords banner art (248x243); the bottom slice holds the scroll's curls
+const PANEL_SLICE = { left: 100, right: 84, top: 68, bottom: 111 };
+const PANEL_MIN_W = PANEL_SLICE.left + PANEL_SLICE.right;
+const PANEL_MIN_H = PANEL_SLICE.top + PANEL_SLICE.bottom;
+// The art is chunky, so the panel is built large and scaled down
+const PANEL_SCALE = 0.5;
+// The parchment area sits above the panel's centre because the curls hang below it
+const PANEL_TEXT_OFFSET = (PANEL_SLICE.top - PANEL_MIN_H / 2) * PANEL_SCALE;
+// Panel units, so the parchment keeps a margin around the text once scaled
+const BUBBLE_PAD_X = 80;
+const BUBBLE_PAD_Y = 70;
+const BUBBLE_MAX_TEXT_W = 190;
+const BUBBLE_GAP = 6;
 
 export const WARRIOR_COLORS = ["red", "blue", "purple", "yellow", "black"] as const;
 
@@ -34,10 +41,9 @@ export class Fighter {
   private apDots: Phaser.GameObjects.Arc[] = [];
   private activeIndicator: Phaser.GameObjects.Ellipse;
   private colorKey: string;
-  private bubble: Phaser.GameObjects.Container;
+  readonly bubble: Phaser.GameObjects.Container;
   private bubblePanel: Phaser.GameObjects.NineSlice;
   private bubbleText: Phaser.GameObjects.Text;
-  private bubbleTail!: Phaser.GameObjects.Triangle;
 
   private _hp: number;
   private _maxHp: number;
@@ -98,20 +104,21 @@ export class Fighter {
 
     this.bubbleText = scene.add
       .text(0, 0, "", {
-        fontSize: "11px",
+        fontSize: "14px",
         color: "#3b3323",
         fontFamily: "monospace",
         align: "center",
         wordWrap: { width: BUBBLE_MAX_TEXT_W },
       })
       .setOrigin(0.5);
-    this.bubblePanel = scene.add.nineslice(
-      0, 0, "paper_panel", undefined, 120, 60,
-      PANEL_SLICE.left, PANEL_SLICE.right, PANEL_SLICE.top, PANEL_SLICE.bottom,
-    );
-    const tail = scene.add.triangle(0, 0, -7, 0, 7, 0, 0, 9, 0xeee1c6).setOrigin(0.5, 0);
-    this.bubble = scene.add.container(0, 0, [this.bubblePanel, tail, this.bubbleText]).setVisible(false);
-    this.bubbleTail = tail;
+    this.bubblePanel = scene.add
+      .nineslice(
+        0, 0, "banner_panel", undefined, PANEL_MIN_W, PANEL_MIN_H,
+        PANEL_SLICE.left, PANEL_SLICE.right, PANEL_SLICE.top, PANEL_SLICE.bottom,
+      )
+      .setScale(PANEL_SCALE);
+    // Kept out of the fighter container and given a depth, so bubbles draw over every fighter and name
+    this.bubble = scene.add.container(worldX, worldY, [this.bubblePanel, this.bubbleText]).setVisible(false).setDepth(20);
 
     this.container = scene.add.container(worldX, worldY, [
       this.activeIndicator,
@@ -121,7 +128,6 @@ export class Fighter {
       this.hpBarFill,
       this.hpBarBorder,
       this.hpText,
-      this.bubble,
     ]);
     this.setAp(MAX_AP);
   }
@@ -129,25 +135,26 @@ export class Fighter {
   setPosition(worldX: number, worldY: number, gx: number, gy: number) {
     this.container.x = worldX;
     this.container.y = worldY;
+    this.bubble.setPosition(worldX, worldY);
     this.gridX = gx;
     this.gridY = gy;
     this.sprite.setFlipX(gx >= GRID_WIDTH / 2);
   }
 
-  /** Shows what this fighter just said, in a paper bubble above their name */
+  /** Shows what this fighter just said, on a little scroll above their name */
   showChat(text: string | null) {
     this.bubble.setVisible(text !== null);
     if (text === null) return;
 
     this.bubbleText.setText(text);
-    const w = Math.max(70, Math.ceil(this.bubbleText.width) + BUBBLE_PAD_X);
-    const h = Math.ceil(this.bubbleText.height) + BUBBLE_PAD_Y;
+    const w = Math.max(PANEL_MIN_W, this.bubbleText.width / PANEL_SCALE + BUBBLE_PAD_X);
+    const h = Math.max(PANEL_MIN_H, this.bubbleText.height / PANEL_SCALE + BUBBLE_PAD_Y);
     this.bubblePanel.setSize(w, h);
-    // Sits above the name label, with the tail pointing down at the fighter
-    const centreY = -44 - BUBBLE_GAP - 9 - h / 2;
+
+    // Sits just above the name label
+    const centreY = -44 - BUBBLE_GAP - (h * PANEL_SCALE) / 2;
     this.bubblePanel.setPosition(0, centreY);
-    this.bubbleText.setPosition(0, centreY);
-    this.bubbleTail.setPosition(0, centreY + h / 2 - 2);
+    this.bubbleText.setPosition(0, centreY + PANEL_TEXT_OFFSET);
   }
 
   playAttack(targetGridX: number) {
@@ -202,6 +209,7 @@ export class Fighter {
   }
 
   destroy() {
+    this.bubble.destroy();
     this.container.destroy();
   }
 }

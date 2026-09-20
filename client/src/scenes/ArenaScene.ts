@@ -296,7 +296,7 @@ export class ArenaScene extends Phaser.Scene {
         fs.maxHp,
       );
       fighter.setPosition(worldPos.x, worldPos.y, fs.position.x, fs.position.y);
-      this.cameras.main.ignore(fighter.container);
+      this.cameras.main.ignore([fighter.container, fighter.bubble]);
       this.fighters.push(fighter);
     }
 
