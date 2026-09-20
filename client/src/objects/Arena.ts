@@ -65,6 +65,16 @@ function windPhase(x: number, y: number): number {
   return p < 0 ? p + 1 : p;
 }
 
+// Cloud art is 576x256 with a grey shadow baked below the cloud; these rects keep only the cloud itself
+const CLOUD_FRAME_W = 576;
+const CLOUD_FRAME_H = 256;
+const CLOUD_CROPS = [
+  { x: 38, y: 42, width: 495, height: 86 },
+  { x: 133, y: 85, width: 307, height: 66 },
+  { x: 205, y: 102, width: 165, height: 33 },
+  { x: 234, y: 115, width: 106, height: 31 },
+];
+
 function textureKey(name: string): string {
   return name.replace(/\s+/g, "_");
 }
@@ -75,6 +85,7 @@ export class Arena {
   private labels: Phaser.GameObjects.Text[] = [];
   private gold!: Phaser.GameObjects.Sprite;
   readonly layer: Phaser.GameObjects.Layer;
+  private cloudTweens: Phaser.Tweens.Tween[] = [];
 
   constructor(
     private scene: Phaser.Scene,
@@ -85,6 +96,7 @@ export class Arena {
     this.layer = scene.add.layer();
     this.draw();
     this.layer.add([...this.gameObjects, ...this.labels]);
+    this.addClouds();
     this.setGold(gold);
   }
 
@@ -267,11 +279,59 @@ export class Arena {
   }
 
   destroy() {
+    for (const t of this.cloudTweens) t.destroy();
+    this.cloudTweens = [];
     for (const obj of this.gameObjects) obj.destroy();
     for (const l of this.labels) l.destroy();
     this.layer.destroy();
     this.gameObjects = [];
     this.labels = [];
+  }
+
+  private addClouds() {
+    const viewW = DISPLAY_COLS * CELL_SIZE;
+    const viewH = DISPLAY_ROWS * CELL_SIZE;
+
+    for (let i = 0; i < 3; i++) {
+      const variant = Phaser.Math.Between(1, 4);
+      const key = `cloud${variant}`;
+      const crop = CLOUD_CROPS[variant - 1];
+      // Scaled up from the crop so even the small variants read as big clouds
+      const scale = Phaser.Math.FloatBetween(1.6, 2.6) * (200 / crop.width);
+      // Keep clouds in the upper part of the view so they don't sit on top of the fighters
+      const y = ARENA_OFFSET_Y + Phaser.Math.Between(-30, Math.round(viewH * 0.3));
+      const width = crop.width * scale;
+      // Each cloud waits out an extra screen-width off to the left, so clouds are on screen about half the time
+      const endX = ARENA_OFFSET_X + viewW + width;
+      const startX = ARENA_OFFSET_X - width - (endX - (ARENA_OFFSET_X - width));
+
+      // Cropping keeps the frame size, so the visible piece renders off-centre by this much
+      const offX = (crop.x + crop.width / 2 - CLOUD_FRAME_W / 2) * scale;
+      const offY = (crop.y + crop.height / 2 - CLOUD_FRAME_H / 2) * scale;
+
+      // Only the shadows are drawn — the clouds themselves are above the camera's view
+      const shadow = this.scene.add.image(0, 0, key).setScale(scale).setTint(0x0a1a12).setAlpha(0.2);
+      // The art has a grey shadow baked under each cloud; crop to the cloud shape and tint that
+      shadow.setCrop(crop.x, crop.y, crop.width, crop.height);
+      this.layer.add(shadow);
+      this.gameObjects.push(shadow);
+
+      const drift = { x: startX + ((endX - startX) * i) / 3 };
+      const place = () => shadow.setPosition(drift.x - offX, y - offY);
+      place();
+
+      this.cloudTweens.push(this.scene.tweens.add({
+        targets: drift,
+        x: endX,
+        duration: (endX - drift.x) * Phaser.Math.Between(70, 110),
+        ease: "Linear",
+        repeat: -1,
+        onUpdate: place,
+        onRepeat: () => {
+          drift.x = startX;
+        },
+      }));
+    }
   }
 
   setGold(pos: { x: number; y: number } | null) {

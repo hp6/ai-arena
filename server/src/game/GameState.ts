@@ -84,6 +84,11 @@ export function placeGold(obstacles: Position[], spawns: Position[]): Position {
   return best[Math.floor(Math.random() * best.length)];
 }
 
+// Fighter names carry the model ("Crimson [deepseek-v4-flash-0731]") for spectators; AIs only ever see the bare name
+export function baseName(name: string): string {
+  return name.replace(/\s*\[[^\]]*\]/g, "");
+}
+
 export function createGame(): GameState {
   const id = `game-${getNextGameId()}`;
 

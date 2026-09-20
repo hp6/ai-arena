@@ -9,10 +9,9 @@ import {
   KILL_HEAL_RATIO,
   GOLD_BONUS_AP,
 } from "@ai-arena/shared";
-import { createGame, getCurrentFighter, shuffleOrder } from "./GameState.js";
+import { createGame, getCurrentFighter, shuffleOrder, baseName } from "./GameState.js";
 import { validateAction } from "./MoveValidator.js";
 import { resolveAttack } from "./CombatResolver.js";
-import { generateRandomActions, generateChatMessage } from "../ai/RandomBot.js";
 import { getAIMove } from "../ai/OpenRouterClient.js";
 import { type AgentConfig, createDefaultConfigs } from "../ai/AgentConfig.js";
 import { createGameRecord, insertFrame, updateGameStatus } from "../db/database.js";
@@ -139,31 +138,36 @@ async function runGameLoop(
       if (!fighter) break;
 
       const agentConfig = agents.find((a) => a.fighterId === fighter.id);
-      let actions: Action[];
+      let actions: Action[] = [];
+      const failure = agentConfig ? null : "no model configured";
+      const aiResult = agentConfig ? await getAIMove(state, fighter.id, agentConfig.model, agentConfig.provider) : null;
 
-      if (agentConfig) {
-        const aiResult = await getAIMove(state, fighter.id, agentConfig.model);
+      if (aiResult?.failure || failure) {
+        // No usable answer from the model: the fighter forfeits the turn instead of acting on its behalf
+        const reason = aiResult?.failure ?? failure;
+        const ap = fighter.ap;
+        fighter.ap = 0;
+        frameIndex = commitFrame(
+          state,
+          {
+            round: state.round,
+            fighterId: fighter.id,
+            description: `${fighter.name} waits (no valid response: ${reason})`,
+            details: `The model gave no usable response (${reason}), so the turn is skipped. AP ${ap}->0`,
+            actionType: "wait",
+          },
+          chat,
+          state.id,
+          frameIndex,
+        );
+      } else if (aiResult) {
         actions = aiResult.actions;
-
         if (aiResult.chatMessage) {
           pushChat(chat, state, {
             fighterId: fighter.id,
             fighterName: fighter.name,
             fighterColor: fighter.color,
             text: aiResult.chatMessage,
-          });
-        }
-
-        if (aiResult.fallback) console.log(`[AI] ${fighter.name} used fallback (random bot)`);
-      } else {
-        actions = generateRandomActions(state, fighter.id);
-        const chatMsg = generateChatMessage(state, fighter.id, actions);
-        if (chatMsg) {
-          pushChat(chat, state, {
-            fighterId: fighter.id,
-            fighterName: fighter.name,
-            fighterColor: fighter.color,
-            text: chatMsg,
           });
         }
       }
@@ -304,7 +308,7 @@ function executeOneAction(state: GameState, fighterId: string, action: Action, a
           fighterId: fighter.id,
           fighterName: fighter.name,
           fighterColor: fighter.color,
-          text: `${target.name} is out! Who's next?`,
+          text: `${baseName(target.name)} is out! Who's next?`,
         };
 
         const aliveCount = state.fighters.filter((f) => f.isAlive).length;

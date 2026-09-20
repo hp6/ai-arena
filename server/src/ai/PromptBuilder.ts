@@ -12,11 +12,12 @@ import {
   GOLD_BONUS_AP,
   MAX_TURN_ACTIONS,
 } from "@ai-arena/shared";
+import { baseName } from "../game/GameState.js";
 
 export function buildSystemPrompt(state: GameState, fighterId: string): string {
   const fighter = state.fighters.find((f) => f.id === fighterId)!;
 
-  let prompt = `You are ${fighter.name}, a fighter in a 2D top-down battle arena. You must defeat all other fighters to win.
+  let prompt = `You are ${baseName(fighter.name)}, a fighter in a 2D top-down battle arena. You must defeat all other fighters to win.
 
 ## RULES
 - The arena is a ${state.arena.width}x${state.arena.height} grid (0-indexed, x=column, y=row)
@@ -50,7 +51,7 @@ export function buildUserPrompt(state: GameState, fighterId: string): string {
   const enemies = state.fighters.filter((f) => f.id !== fighterId && f.isAlive);
 
   let prompt = `## YOUR STATUS
-Fighter: ${fighter.name} (${fighter.id})
+Fighter: ${baseName(fighter.name)} (${fighter.id})
 Position: (${fighter.position.x}, ${fighter.position.y})
 HP: ${fighter.hp}/${fighter.maxHp}
 AP: ${fighter.maxAp} this turn (${fighter.maxAp} per turn)
@@ -58,19 +59,17 @@ AP: ${fighter.maxAp} this turn (${fighter.maxAp} per turn)
 ## ENEMIES`;
 
   for (const enemy of enemies) {
-    const dist = Math.abs(fighter.position.x - enemy.position.x) + Math.abs(fighter.position.y - enemy.position.y);
-    const adjacent = dist <= ATTACK_RANGE ? "YES - CAN ATTACK" : "no";
-    prompt += `\n- ${enemy.name} (${enemy.id}): pos (${enemy.position.x},${enemy.position.y}), HP ${enemy.hp}/${enemy.maxHp}, AP per turn ${enemy.maxAp}, distance ${dist}, adjacent: ${adjacent}`;
+    prompt += `\n- ${baseName(enemy.name)} (${enemy.id}): pos (${enemy.position.x},${enemy.position.y}), HP ${enemy.hp}/${enemy.maxHp}, AP per turn ${enemy.maxAp}`;
   }
 
   // Show dead fighters too
   const dead = state.fighters.filter((f) => f.id !== fighterId && !f.isAlive);
   if (dead.length > 0) {
-    prompt += `\n\nEliminated: ${dead.map((f) => f.name).join(", ")}`;
+    prompt += `\n\nEliminated: ${dead.map((f) => baseName(f.name)).join(", ")}`;
   }
 
   prompt += state.gold
-    ? `\n\n## GOLD\n- (${state.gold.x}, ${state.gold.y}), distance ${Math.abs(fighter.position.x - state.gold.x) + Math.abs(fighter.position.y - state.gold.y)}: move onto it for +${GOLD_BONUS_AP} AP per turn`
+    ? `\n\n## GOLD\n- (${state.gold.x}, ${state.gold.y}): move onto it for +${GOLD_BONUS_AP} AP per turn`
     : `\n\n## GOLD\n- Already eaten`;
 
   prompt += `\n\n## OBSTACLES (impassable cells)`;
@@ -83,14 +82,14 @@ AP: ${fighter.maxAp} this turn (${fighter.maxAp} per turn)
     const recentChat = state.chat.slice(-6);
     prompt += `\n\n## RECENT CHAT`;
     for (const msg of recentChat) {
-      prompt += `\n${msg.fighterName}: ${msg.text}`;
+      prompt += `\n${baseName(msg.fighterName)}: ${baseName(msg.text)}`;
     }
   }
 
   prompt += `\n\n## ROUND ${state.round}
 ${state.fighters.filter((f) => f.isAlive).length} fighters remaining.
 
-Make your move. Return a chat message and your actions (${fighter.maxAp}, plus extras only for AP you expect to earn this turn).`;
+Make your move. Return a chat message and your actions.`;
 
   return prompt;
 }

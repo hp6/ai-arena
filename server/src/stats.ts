@@ -1,5 +1,5 @@
 import type { GameFrame } from "@ai-arena/shared";
-import { listAllGames, getFramesAfter, type GameRecord } from "./db/database.js";
+import { listAllGames, getFramesAfter, setGameSummary, type GameRecord } from "./db/database.js";
 
 export interface MatchFighter {
   id: string;
@@ -8,6 +8,7 @@ export interface MatchFighter {
   color: number;
   kills: number;
   damageDealt: number;
+  damageTaken: number;
   placement: number | null;
 }
 
@@ -40,7 +41,7 @@ export interface Stats {
   matches: MatchSummary[];
 }
 
-function summarize(game: GameRecord, frames: GameFrame[]): MatchSummary & { damageTaken: number[] } {
+function summarize(game: GameRecord, frames: GameFrame[]): MatchSummary {
   const n = game.fighters.length;
   const kills = new Array(n).fill(0);
   const dealt = new Array(n).fill(0);
@@ -84,7 +85,6 @@ function summarize(game: GameRecord, frames: GameFrame[]): MatchSummary & { dama
     rounds,
     turns,
     winnerId: game.winner,
-    damageTaken: taken,
     fighters: game.fighters.map((f, j) => ({
       id: f.id,
       name: f.name,
@@ -92,6 +92,7 @@ function summarize(game: GameRecord, frames: GameFrame[]): MatchSummary & { dama
       color: f.color,
       kills: kills[j],
       damageDealt: dealt[j],
+      damageTaken: taken[j],
       placement: placement(j),
     })),
   };
@@ -104,13 +105,19 @@ export function computeStats(): Stats {
   let roundsSum = 0;
 
   for (const game of games) {
-    const { frames } = getFramesAfter(game.id, -1);
-    const { damageTaken, ...match } = summarize(game, frames);
+    // Finished matches never change, so their summary is computed once and cached on the games row
+    let match: MatchSummary;
+    if (game.summaryJson) {
+      match = JSON.parse(game.summaryJson);
+    } else {
+      match = summarize(game, getFramesAfter(game.id, -1).frames);
+      if (game.status !== "running") setGameSummary(game.id, JSON.stringify(match));
+    }
     matches.push(match);
     if (game.status !== "finished") continue;
 
     roundsSum += match.rounds;
-    match.fighters.forEach((f, j) => {
+    match.fighters.forEach((f) => {
       let m = models.get(f.model);
       if (!m) {
         // Games are newest-first, so slot and color come from the model's latest match
@@ -121,7 +128,7 @@ export function computeStats(): Stats {
       if (game.winner === f.id) m.wins++;
       m.kills += f.kills;
       m.damageDealt += f.damageDealt;
-      m.damageTaken += damageTaken[j];
+      m.damageTaken += f.damageTaken;
       m.placementSum += f.placement ?? 0;
     });
   }

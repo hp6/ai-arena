@@ -21,11 +21,10 @@ Monorepo with npm workspaces: `shared/`, `client/`, `server/`.
 - `server/src/game/MoveValidator.ts` — Validates actions against game rules (adjacency, obstacles, AP cost, range)
 - `server/src/game/CombatResolver.ts` — Damage calculation with variance
 - `server/src/db/database.ts` — SQLite layer (better-sqlite3): games table, frames table, CRUD helpers
-- `server/src/ai/OpenRouterClient.ts` — Calls OpenRouter with structured output schema, timeout/retry, fallback to RandomBot
+- `server/src/ai/OpenRouterClient.ts` — Calls OpenRouter with structured output schema, timeout/retry; reports a failure reason when no usable response
 - `server/src/ai/PromptBuilder.ts` — Builds system + user prompts with full game state, valid moves, enemy distances
 - `server/src/ai/MoveSchema.ts` — JSON schema for structured AI responses (reasoning, chat, actions)
 - `server/src/ai/AgentConfig.ts` — Per-fighter model config and defaults
-- `server/src/ai/RandomBot.ts` — Fallback bot for when AI calls fail
 - `server/src/routes/game.ts` — REST API endpoints (create, list, metadata, frames)
 
 ### Default AI Models
@@ -41,13 +40,15 @@ Monorepo with npm workspaces: `shared/`, `client/`, `server/`.
 - `GET /api/games` — List recent games (id, status, fighters, timestamps)
 - `GET /api/games/:id` — Get game metadata (fighters, arena, status, winner)
 - `GET /api/games/:id/frames?after=N` — Poll for frames after index N (returns new frames + game status)
+- `GET /api/games/:id/ai-calls` — Every AI request attempt for a game (prompts, request settings, raw reply, finish reason, token usage, error) for debugging
 - `GET /api/stats` — Totals, per-model leaderboard, and match history (computed from all games and frames)
 
 ### Database
 
-SQLite via `better-sqlite3`, stored at `server/data/arena.db` (gitignored). Two tables:
+SQLite via `better-sqlite3`, stored at `server/data/arena.db` (gitignored). Three tables:
 - `games` — id, status (running/finished/interrupted), winner, created_at, config (JSON: fighters, arena, agents)
 - `frames` — game_id, frame_index, data (JSON: GameFrame snapshot)
+- `ai_calls` — one row per OpenRouter attempt: game_id, round, fighter_id, model, attempt, system/user prompt, request settings, http status, raw response, content, finish_reason, usage, error, duration
 
 Games still running when the server restarts are marked `interrupted`.
 
@@ -79,7 +80,7 @@ cd server && npx tsc --noEmit
 - **Frames persisted to SQLite** — games survive server restarts and can be replayed anytime
 - AI uses structured output (`response_format` with `json_schema`, `strict: true`) for reliable move parsing
 - AI system prompt includes valid moves, enemy distances, and recent chat for context
-- 30s timeout per AI call, one retry on transient errors, fallback to RandomBot
+- 90s timeout and 4000 max_tokens per AI call (reasoning tokens count toward the limit), one retry on transient errors; if the model still gives no usable response the fighter waits (turn skipped, reason logged). No bot ever plays for a model
 - Client polls every 1.5s for new frames while game is running
 - `@ai-arena/shared` is resolved via Vite alias + tsconfig paths (no build step needed)
 - OpenRouter API key stored in `.env` as `OR_KEY`

@@ -55,6 +55,12 @@ export class BootScene extends Phaser.Scene {
     this.load.audio("bg_music", "assets/sounds/bg_music.mp3");
     this.load.audio("sword_clash", "assets/sounds/sword_clash.wav");
 
+    for (let i = 1; i <= 4; i++) {
+      this.load.image(`cloud${i}`, `assets/decorations/Clouds_0${i}.png`);
+    }
+
+    this.load.image("paper_panel", "assets/ui/paper_panel.png");
+
     this.load.spritesheet("gold", "assets/resources/Gold_Resource_Highlight.png", {
       frameWidth: 128,
       frameHeight: 128,

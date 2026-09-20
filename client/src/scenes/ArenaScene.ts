@@ -357,19 +357,23 @@ export class ArenaScene extends Phaser.Scene {
 
   // ---- NAVIGATION ----
 
+  // Stepping by hand takes over from auto play
   private stepForward() {
+    this.stopAutoPlay();
     if (this.currentFrame < this.frames.length - 1) {
       this.applyFrame(this.currentFrame + 1);
     }
   }
 
   private stepBackward() {
+    this.stopAutoPlay();
     if (this.currentFrame > 0) {
       this.applyFrame(this.currentFrame - 1);
     }
   }
 
   private goToFrame(index: number) {
+    this.stopAutoPlay();
     if (this.frames.length === 0) return;
     this.applyFrame(Math.max(0, Math.min(index, this.frames.length - 1)));
   }
@@ -418,6 +422,13 @@ export class ArenaScene extends Phaser.Scene {
     this.currentFrame = Math.max(0, Math.min(index, this.frames.length - 1));
     const frame = this.frames[this.currentFrame];
     this.arena!.setGold(frame.gold ?? null);
+
+    // Show a speech bubble only for a line that was said on this frame
+    const said = this.currentFrame > 0 ? frame.chatMessages.slice(this.frames[this.currentFrame - 1].chatMessages.length) : [];
+    for (const f of this.fighters) {
+      const line = said.filter((m) => m.fighterId === f.id).pop();
+      f.showChat(line?.text ?? null);
+    }
 
     for (let i = 0; i < this.fighters.length; i++) {
       const fs = frame.fighters[i];

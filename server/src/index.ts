@@ -17,7 +17,7 @@ const app = express();
 const PORT = parseInt(process.env.PORT ?? "3001", 10);
 
 if (!process.env.OR_KEY) {
-  console.warn("WARNING: OR_KEY is not set — all fighters will fall back to RandomBot, not real AI.");
+  console.warn("WARNING: OR_KEY is not set — every fighter will just wait each turn.");
 }
 
 app.use(cors());

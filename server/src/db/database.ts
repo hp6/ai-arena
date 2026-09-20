@@ -17,6 +17,8 @@ export interface GameRecord {
   fighters: FighterState[];
   arena: ArenaConfig;
   agents: AgentConfig[];
+  /** Cached match summary JSON, written once the game is over so stats don't re-read its frames */
+  summaryJson: string | null;
 }
 
 export function initDb(): void {
@@ -30,7 +32,8 @@ export function initDb(): void {
       status TEXT NOT NULL DEFAULT 'running',
       winner TEXT,
       created_at TEXT NOT NULL,
-      config TEXT NOT NULL
+      config TEXT NOT NULL,
+      summary TEXT
     );
 
     CREATE TABLE IF NOT EXISTS frames (
@@ -40,7 +43,34 @@ export function initDb(): void {
       PRIMARY KEY (game_id, frame_index),
       FOREIGN KEY (game_id) REFERENCES games(id)
     );
+
+    CREATE TABLE IF NOT EXISTS ai_calls (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      game_id TEXT NOT NULL,
+      round INTEGER NOT NULL,
+      fighter_id TEXT NOT NULL,
+      model TEXT NOT NULL,
+      attempt INTEGER NOT NULL,
+      created_at TEXT NOT NULL,
+      duration_ms INTEGER NOT NULL,
+      system_prompt TEXT NOT NULL,
+      user_prompt TEXT NOT NULL,
+      request TEXT NOT NULL,
+      http_status INTEGER,
+      raw_response TEXT,
+      content TEXT,
+      finish_reason TEXT,
+      usage TEXT,
+      error TEXT,
+      FOREIGN KEY (game_id) REFERENCES games(id)
+    );
+    CREATE INDEX IF NOT EXISTS ai_calls_game ON ai_calls (game_id, id);
   `);
+
+  const columns = db.prepare("PRAGMA table_info(games)").all() as { name: string }[];
+  if (!columns.some((c) => c.name === "summary")) {
+    db.exec("ALTER TABLE games ADD COLUMN summary TEXT");
+  }
 
   // Mark any games that were still running when the server last shut down.
   db.prepare("UPDATE games SET status = 'interrupted' WHERE status = 'running'").run();
@@ -100,6 +130,7 @@ export function getGame(gameId: string): GameRecord | null {
     winner: string | null;
     created_at: string;
     config: string;
+    summary: string | null;
   } | undefined;
 
   if (!row) return null;
@@ -113,6 +144,7 @@ export function getGame(gameId: string): GameRecord | null {
     fighters: config.fighters,
     arena: config.arena,
     agents: config.agents,
+    summaryJson: row.summary,
   };
 }
 
@@ -120,7 +152,11 @@ export function updateGameStatus(gameId: string, status: "finished" | "interrupt
   db.prepare("UPDATE games SET status = ?, winner = ? WHERE id = ?").run(status, winner, gameId);
 }
 
-export function listGames(): Omit<GameRecord, "agents">[] {
+export function setGameSummary(gameId: string, summaryJson: string) {
+  db.prepare("UPDATE games SET summary = ? WHERE id = ?").run(summaryJson, gameId);
+}
+
+export function listGames(): Omit<GameRecord, "agents" | "summaryJson">[] {
   const rows = db
     .prepare("SELECT * FROM games ORDER BY created_at DESC LIMIT 50")
     .all() as { id: string; status: string; winner: string | null; created_at: string; config: string }[];
@@ -141,7 +177,7 @@ export function listGames(): Omit<GameRecord, "agents">[] {
 export function listAllGames(): GameRecord[] {
   const rows = db
     .prepare("SELECT * FROM games ORDER BY created_at DESC")
-    .all() as { id: string; status: string; winner: string | null; created_at: string; config: string }[];
+    .all() as { id: string; status: string; winner: string | null; created_at: string; config: string; summary: string | null }[];
 
   return rows.map((row) => {
     const config = JSON.parse(row.config);
@@ -153,6 +189,74 @@ export function listAllGames(): GameRecord[] {
       fighters: config.fighters,
       arena: config.arena,
       agents: config.agents,
+      summaryJson: row.summary,
     };
   });
+}
+
+export interface AiCallRecord {
+  gameId: string;
+  round: number;
+  fighterId: string;
+  model: string;
+  attempt: number;
+  durationMs: number;
+  systemPrompt: string;
+  userPrompt: string;
+  /** Request body without the messages (model, temperature, max_tokens, schema) */
+  request: unknown;
+  httpStatus: number | null;
+  rawResponse: string | null;
+  content: string | null;
+  finishReason: string | null;
+  usage: unknown;
+  error: string | null;
+}
+
+export function insertAiCall(call: AiCallRecord) {
+  db.prepare(
+    `INSERT INTO ai_calls (game_id, round, fighter_id, model, attempt, created_at, duration_ms, system_prompt, user_prompt,
+       request, http_status, raw_response, content, finish_reason, usage, error)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  ).run(
+    call.gameId,
+    call.round,
+    call.fighterId,
+    call.model,
+    call.attempt,
+    new Date().toISOString(),
+    call.durationMs,
+    call.systemPrompt,
+    call.userPrompt,
+    JSON.stringify(call.request),
+    call.httpStatus,
+    call.rawResponse,
+    call.content,
+    call.finishReason,
+    call.usage === undefined || call.usage === null ? null : JSON.stringify(call.usage),
+    call.error,
+  );
+}
+
+export function listAiCalls(gameId: string) {
+  const rows = db.prepare("SELECT * FROM ai_calls WHERE game_id = ? ORDER BY id").all(gameId) as Record<string, any>[];
+  return rows.map((r) => ({
+    id: r.id,
+    round: r.round,
+    fighterId: r.fighter_id,
+    model: r.model,
+    attempt: r.attempt,
+    createdAt: r.created_at,
+    durationMs: r.duration_ms,
+    ok: r.error === null,
+    error: r.error,
+    httpStatus: r.http_status,
+    finishReason: r.finish_reason,
+    usage: r.usage ? JSON.parse(r.usage) : null,
+    content: r.content,
+    systemPrompt: r.system_prompt,
+    userPrompt: r.user_prompt,
+    request: JSON.parse(r.request),
+    rawResponse: r.raw_response,
+  }));
 }

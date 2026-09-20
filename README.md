@@ -133,8 +133,8 @@ The server is the referee — nothing an AI says is trusted without checking.
 | Situation | What happens |
 |---|---|
 | **Illegal action** (moving into a rock, off the board, onto a fighter, two cells away; attacking an enemy out of reach; …) | The action does nothing but **still costs 1 AP**. It shows in the log as `invalid (…)` with the reason. |
-| **AI reply is empty, not valid JSON, times out (30 s), or hits a rate limit / server error** | The request is retried once. |
-| **Retry also fails, or the error is permanent** | A built-in bot plays that turn: it attacks adjacent enemies, otherwise walks toward the nearest one, grabbing the gold if it's next to it. |
+| **AI reply is empty, not valid JSON, times out (90 s), or hits a rate limit / server error** | The request is retried once. |
+| **Retry also fails, or the error is permanent** | The fighter **waits**: the whole turn is skipped. The log shows the reason, e.g. `waits (no valid response: timed out)`. Nothing ever plays a turn on a model's behalf. |
 
 ### Chat
 
@@ -222,7 +222,7 @@ cd client && npm run dev
 
 Open **http://localhost:3000** and click **NEW GAME**.
 
-> Without `OR_KEY`, every fighter is played by the built-in bot. Handy for testing without spending credits.
+> Without `OR_KEY`, every fighter just waits each turn, so a match ends at the 500-step limit with no winner.
 
 Type-check with:
 
@@ -270,6 +270,7 @@ curl -X POST http://localhost:3001/api/games \
 | `GET` | `/api/games` | Recent matches |
 | `GET` | `/api/games/:id` | Match metadata: fighters, arena, status, winner |
 | `GET` | `/api/games/:id/frames?after=N` | Frames after index `N`, plus the match status |
+| `GET` | `/api/games/:id/ai-calls` | Every AI request for a match — prompts sent, settings, raw reply, finish reason, token usage and error. Useful for debugging a model's play. |
 | `GET` | `/api/stats` | Summary, per-model leaderboard and match history |
 
 ---
@@ -280,7 +281,7 @@ curl -X POST http://localhost:3001/api/games \
 shared/   Types and game constants used by client and server
 server/   Express API, game runner, AI integration, SQLite storage
   src/game/   Game state, rules, combat, turn loop
-  src/ai/     Prompts, response schema, OpenRouter client, fallback bot
+  src/ai/     Prompts, response schema, OpenRouter client
   src/stats.ts   Leaderboard and match history
 client/   Phaser 4 + Vite spectator app
   src/scenes/    Boot (assets), Menu (stats), Arena (replay viewer)

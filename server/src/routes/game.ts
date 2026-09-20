@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { startGame, getRunningGameId } from "../game/GameRunner.js";
-import { type AgentConfig, createDefaultConfigs } from "../ai/AgentConfig.js";
-import { getGame, getFramesAfter, listGames } from "../db/database.js";
+import { type AgentConfig, createDefaultConfigs, PREFERRED_PROVIDERS } from "../ai/AgentConfig.js";
+import { getGame, getFramesAfter, listGames, listAiCalls } from "../db/database.js";
 
 const router = Router();
 
@@ -16,10 +16,10 @@ router.post("/", (req, res) => {
 
   let agents: AgentConfig[];
   if (req.body?.agents && Array.isArray(req.body.agents)) {
-    agents = req.body.agents.map((a: any, i: number) => ({
-      fighterId: `fighter-${i}`,
-      model: a.model || createDefaultConfigs()[i].model,
-    }));
+    agents = req.body.agents.map((a: any, i: number) => {
+      const model = a.model || createDefaultConfigs()[i].model;
+      return { fighterId: `fighter-${i}`, model, provider: a.provider ?? PREFERRED_PROVIDERS[model] };
+    });
   } else {
     agents = createDefaultConfigs();
   }
@@ -76,6 +76,16 @@ router.get("/:id/frames", (req, res) => {
     frames,
     totalFrames,
   });
+});
+
+// Every AI request attempt for a game: prompts, request settings, raw reply, finish reason, usage and error
+router.get("/:id/ai-calls", (req, res) => {
+  const game = getGame(req.params.id);
+  if (!game) {
+    res.status(404).json({ error: "Game not found" });
+    return;
+  }
+  res.json(listAiCalls(game.id));
 });
 
 export default router;
