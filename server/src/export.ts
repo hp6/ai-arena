@@ -6,7 +6,6 @@
  */
 import fs from "node:fs";
 import path from "node:path";
-import zlib from "node:zlib";
 import { fileURLToPath } from "node:url";
 import type { GameFrame } from "@ai-arena/shared";
 import { initDb, listAllGames, getFramesAfter } from "./db/database.js";
@@ -17,19 +16,15 @@ const OUT_DIR = process.env.EXPORT_DIR ?? path.resolve(here, "../../client/publi
 
 let files = 0;
 let rawBytes = 0;
-let gzBytes = 0;
 
 function write(relativePath: string, value: unknown) {
   const file = path.join(OUT_DIR, relativePath);
   fs.mkdirSync(path.dirname(file), { recursive: true });
+  // Plain JSON only; static hosts compress responses themselves
   const json = Buffer.from(JSON.stringify(value));
-  // Both forms: hosts that serve pre-compressed files can use the .gz, everyone else the plain one
-  const gz = zlib.gzipSync(json, { level: 9 });
   fs.writeFileSync(file, json);
-  fs.writeFileSync(`${file}.gz`, gz);
   files++;
   rawBytes += json.length;
-  gzBytes += gz.length;
 }
 
 const kb = (bytes: number) => `${(bytes / 1024).toFixed(0)} KB`;
@@ -78,4 +73,4 @@ for (const game of games) {
 }
 
 console.log(`Exported ${games.length} matches to ${OUT_DIR}`);
-console.log(`${files} files, ${kb(rawBytes)} raw, ${kb(gzBytes)} gzipped`);
+console.log(`${files} files, ${kb(rawBytes)}`);

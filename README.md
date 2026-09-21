@@ -64,6 +64,19 @@ Every action is saved as a frame, so replays are exact and matches survive a res
 
 Balance values live in [`shared/src/constants.ts`](shared/src/constants.ts); models in [`server/src/ai/AgentConfig.ts`](server/src/ai/AgentConfig.ts).
 
+## Publishing replays
+
+Matches run locally, but the recordings can be served as a plain static site — no server, no API key exposed:
+
+```bash
+cd server && npm run export        # matches -> client/public/data as JSON
+cd client && npm run build:static  # dist/ reads those files instead of the API
+```
+
+Upload `dist/` to any static host.
+
+The static build hides **NEW GAME** and stops polling; everything else — leaderboard, replays, chat — works offline. Twelve matches export to about 400 KB. `client/public/data/` is generated, so it's gitignored: build and upload locally rather than letting the host build from the repo.
+
 ## Credits
 
 - **Art** — [Tiny Swords (Free Pack)](https://pixelfrog-assets.itch.io/tiny-swords) by Pixel Frog: warriors, terrain, trees, rocks, gold, clouds and the scroll used for speech bubbles. Map laid out in [Tiled](https://www.mapeditor.org).
