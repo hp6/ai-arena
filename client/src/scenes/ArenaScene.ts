@@ -1,13 +1,12 @@
 import Phaser from "phaser";
 import type { GameFrame, FighterState, ArenaConfig } from "@ai-arena/shared";
-import { CELL_SIZE, DISPLAY_COLS, DISPLAY_ROWS } from "@ai-arena/shared";
 import { Arena, ARENA_OFFSET_X, ARENA_OFFSET_Y } from "../objects/Arena";
 import { Fighter } from "../objects/Fighter";
 import { addMuteButton } from "../utils/sound";
 
 import { API_BASE, IS_STATIC, framesUrl, gameUrl } from "../utils/api";
 
-import { ARENA_TEXT, LAYOUT, TEXT, UI } from "../utils/layout";
+import { ARENA_H, ARENA_TEXT, ARENA_W, LAYOUT, TEXT, UI } from "../utils/layout";
 
 const PANEL_X = LAYOUT.panelX;
 const PANEL_WIDTH = LAYOUT.panelWidth;
@@ -42,10 +41,20 @@ export class ArenaScene extends Phaser.Scene {
   private roundText!: Phaser.GameObjects.Text;
   private statusText!: Phaser.GameObjects.Text;
 
+  private logTitle!: Phaser.GameObjects.Text;
+  private chatTitle!: Phaser.GameObjects.Text;
   private logTexts: Phaser.GameObjects.Text[] = [];
   private chatTexts: Phaser.GameObjects.Text[] = [];
   private btnAuto!: Phaser.GameObjects.Text;
   private hintY = 0;
+  // Entries held back from the bottom of each panel; 0 follows the newest line
+  private logScroll = 0;
+  private chatScroll = 0;
+  private logCount = 0;
+  private chatCount = 0;
+  private dragPanel: "log" | "chat" | null = null;
+  private dragFromY = 0;
+  private dragFromScroll = 0;
 
   constructor() {
     super("Arena");
@@ -64,10 +73,13 @@ export class ArenaScene extends Phaser.Scene {
     this.pollTimer = null;
     this.logTexts = [];
     this.chatTexts = [];
+    this.logScroll = 0;
+    this.chatScroll = 0;
+    this.dragPanel = null;
 
     // Phaser 4 geometry masks don't work in WebGL; a camera viewport clips the arena instead
     const arenaCam = this.cameras
-      .add(ARENA_OFFSET_X, ARENA_OFFSET_Y, DISPLAY_COLS * CELL_SIZE, DISPLAY_ROWS * CELL_SIZE)
+      .add(ARENA_OFFSET_X, ARENA_OFFSET_Y, ARENA_W, ARENA_H)
       .setScroll(ARENA_OFFSET_X, ARENA_OFFSET_Y);
     this.addArenaTapTarget(arenaCam);
     this.createUI();
@@ -103,7 +115,7 @@ export class ArenaScene extends Phaser.Scene {
       .rectangle(PANEL_X + PANEL_WIDTH / 2, LOG_Y + LOG_HEIGHT / 2, PANEL_WIDTH, LOG_HEIGHT, 0x1e2b38, 0.95)
       .setStrokeStyle(2, 0x315a6d);
 
-    this.add.text(PANEL_X + 10, LOG_Y + UI(8), "GAME LOG", {
+    this.logTitle = this.add.text(PANEL_X + 10, LOG_Y + UI(8), "GAME LOG", {
       fontSize: TEXT(13),
       color: "#e8ce91",
       fontFamily: "monospace",
@@ -126,7 +138,7 @@ export class ArenaScene extends Phaser.Scene {
       .rectangle(PANEL_X + PANEL_WIDTH / 2, CHAT_Y + CHAT_HEIGHT / 2, PANEL_WIDTH, CHAT_HEIGHT, 0x1b2531, 0.95)
       .setStrokeStyle(2, 0x315a6d);
 
-    this.add.text(PANEL_X + 10, CHAT_Y + UI(8), "GLOBAL CHAT", {
+    this.chatTitle = this.add.text(PANEL_X + 10, CHAT_Y + UI(8), "GLOBAL CHAT", {
       fontSize: TEXT(13),
       color: "#93ba4f",
       fontFamily: "monospace",
@@ -171,7 +183,7 @@ export class ArenaScene extends Phaser.Scene {
     let x = LAYOUT.margin;
     let y = btnY;
     // Buttons sit under the arena, so they wrap against its width, not the side panel's
-    const rowEnd = ARENA_OFFSET_X + DISPLAY_COLS * CELL_SIZE;
+    const rowEnd = ARENA_OFFSET_X + ARENA_W;
     for (const [label, style, onClick] of buttons) {
       const button = this.add.text(x, y, label, style).setInteractive({ useHandCursor: true }).on("pointerdown", onClick);
       // Wrap before drawing rather than after, so a wide button never hangs off the edge
@@ -199,7 +211,7 @@ export class ArenaScene extends Phaser.Scene {
   private addArenaTapTarget(arenaCam: Phaser.Cameras.Scene2D.Camera) {
     if (!this.sys.game.device.input.touch) return;
     const tap = this.add
-      .zone(ARENA_OFFSET_X, ARENA_OFFSET_Y, DISPLAY_COLS * CELL_SIZE, DISPLAY_ROWS * CELL_SIZE)
+      .zone(ARENA_OFFSET_X, ARENA_OFFSET_Y, ARENA_W, ARENA_H)
       .setOrigin(0)
       .setInteractive()
       .on("pointerup", (pointer: Phaser.Input.Pointer) => {
@@ -212,14 +224,61 @@ export class ArenaScene extends Phaser.Scene {
     arenaCam.ignore(tap);
   }
 
+  /** Which panel, if any, the pointer is over */
+  private panelAt(x: number, y: number): "log" | "chat" | null {
+    if (x < PANEL_X || x > PANEL_X + PANEL_WIDTH) return null;
+    if (y >= LOG_Y && y <= LOG_Y + LOG_HEIGHT) return "log";
+    if (y >= CHAT_Y && y <= CHAT_Y + CHAT_HEIGHT) return "chat";
+    return null;
+  }
+
+  private scrollOf(panel: "log" | "chat") {
+    return panel === "log" ? this.logScroll : this.chatScroll;
+  }
+
+  /** Holds the panel back from the newest entry; clamped so at least one entry stays on screen */
+  private scrollPanel(panel: "log" | "chat", to: number) {
+    const log = panel === "log";
+    const max = Math.max(0, (log ? this.logCount : this.chatCount) - 1);
+    const next = Phaser.Math.Clamp(to, 0, max);
+    if (next === this.scrollOf(panel)) return;
+    if (log) {
+      this.logScroll = next;
+      this.updateLog();
+    } else {
+      this.chatScroll = next;
+      this.updateChat();
+    }
+  }
+
+  // The panels follow the newest line, but can be pulled back to read what scrolled past
+  private setupPanelScrolling() {
+    this.input.on("wheel", (p: Phaser.Input.Pointer, _o: unknown, _dx: number, dy: number) => {
+      const panel = this.panelAt(p.x, p.y);
+      if (panel) this.scrollPanel(panel, this.scrollOf(panel) - Math.sign(dy) * 3);
+    });
+
+    this.input.on("pointerdown", (p: Phaser.Input.Pointer) => {
+      this.dragPanel = this.panelAt(p.x, p.y);
+      this.dragFromY = p.y;
+      this.dragFromScroll = this.dragPanel ? this.scrollOf(this.dragPanel) : 0;
+    });
+    this.input.on("pointermove", (p: Phaser.Input.Pointer) => {
+      if (!this.dragPanel || !p.isDown) return;
+      const rowHeight = this.dragPanel === "log" ? LOG_LINE_HEIGHT : CHAT_LINE_HEIGHT;
+      this.scrollPanel(this.dragPanel, this.dragFromScroll + Math.round((p.y - this.dragFromY) / rowHeight));
+    });
+  }
+
   private setupInput() {
+    this.setupPanelScrolling();
     this.input.keyboard!.on("keydown-RIGHT", () => this.stepForward());
     this.input.keyboard!.on("keydown-LEFT", () => this.stepBackward());
     this.input.keyboard!.on("keydown-HOME", () => this.goToFrame(0));
     this.input.keyboard!.on("keydown-END", () => this.goToFrame(this.frames.length - 1));
     this.input.keyboard!.on("keydown-SPACE", () => this.toggleAutoPlay());
     this.input.keyboard!.on("keydown-ESC", () => this.scene.start("Menu"));
-    addMuteButton(this, ARENA_OFFSET_X + DISPLAY_COLS * CELL_SIZE, LAYOUT.headerY + 2, 1);
+    addMuteButton(this, ARENA_OFFSET_X + ARENA_W, LAYOUT.headerY + 2, 1);
   }
 
   // ---- SERVER COMMUNICATION ----
@@ -533,6 +592,7 @@ export class ArenaScene extends Phaser.Scene {
     panelY: number,
     panelHeight: number,
     items: { text: string; color: string; bold: boolean }[],
+    scrollBack = 0,
   ) {
     for (const t of textObjects) {
       t.setText("");
@@ -548,7 +608,7 @@ export class ArenaScene extends Phaser.Scene {
     let totalHeight = 0;
     const measure = textObjects[0];
 
-    for (let i = items.length - 1; i >= 0; i--) {
+    for (let i = items.length - 1 - scrollBack; i >= 0; i--) {
       measure.setText(items[i].text);
       const h = measure.height + gap;
       if (totalHeight + h > availableHeight && fitting.length > 0) break;
@@ -575,6 +635,7 @@ export class ArenaScene extends Phaser.Scene {
 
   private updateLog() {
     if (this.frames.length === 0) {
+      this.logCount = 0;
       this.layoutPanel(this.logTexts, LOG_Y, LOG_HEIGHT, []);
       return;
     }
@@ -608,11 +669,17 @@ export class ArenaScene extends Phaser.Scene {
       items.push({ text: `${prefix}${entry.description}`, color, bold });
     }
 
-    this.layoutPanel(this.logTexts, LOG_Y, LOG_HEIGHT, items);
+    // Scrolled back, the view stays on the same entries as the log grows or shrinks under it
+    if (this.logScroll > 0) this.logScroll += items.length - this.logCount;
+    this.logCount = items.length;
+    this.logScroll = Phaser.Math.Clamp(this.logScroll, 0, Math.max(0, items.length - 1));
+    this.logTitle.setText(this.logScroll > 0 ? "GAME LOG (scrolled back)" : "GAME LOG");
+    this.layoutPanel(this.logTexts, LOG_Y, LOG_HEIGHT, items, this.logScroll);
   }
 
   private updateChat() {
     if (this.frames.length === 0) {
+      this.chatCount = 0;
       this.layoutPanel(this.chatTexts, CHAT_Y, CHAT_HEIGHT, []);
       return;
     }
@@ -627,6 +694,10 @@ export class ArenaScene extends Phaser.Scene {
       };
     });
 
-    this.layoutPanel(this.chatTexts, CHAT_Y, CHAT_HEIGHT, items);
+    if (this.chatScroll > 0) this.chatScroll += items.length - this.chatCount;
+    this.chatCount = items.length;
+    this.chatScroll = Phaser.Math.Clamp(this.chatScroll, 0, Math.max(0, items.length - 1));
+    this.chatTitle.setText(this.chatScroll > 0 ? "GLOBAL CHAT (scrolled back)" : "GLOBAL CHAT");
+    this.layoutPanel(this.chatTexts, CHAT_Y, CHAT_HEIGHT, items, this.chatScroll);
   }
 }

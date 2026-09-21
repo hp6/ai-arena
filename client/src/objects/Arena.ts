@@ -1,23 +1,36 @@
 import Phaser from "phaser";
-import { GRID_WIDTH, GRID_HEIGHT, CELL_SIZE, DISPLAY_COLS, DISPLAY_ROWS, GAME_OFFSET } from "@ai-arena/shared";
+import { GRID_WIDTH, GRID_HEIGHT, CELL_SIZE } from "@ai-arena/shared";
 
-import { LAYOUT } from "../utils/layout";
+import { ARENA_H, ARENA_W, LAYOUT } from "../utils/layout";
 
 export const ARENA_OFFSET_X = LAYOUT.arenaX;
 export const ARENA_OFFSET_Y = LAYOUT.arenaY;
 
 // Render extra tiles beyond the visible area so edge objects/foam look correct
 const RENDER_PAD = 3;
-const RENDER_COLS = DISPLAY_COLS + RENDER_PAD * 2;
-const RENDER_ROWS = DISPLAY_ROWS + RENDER_PAD * 2;
+const RENDER_COLS = Math.ceil(LAYOUT.viewCols) + RENDER_PAD * 2 + 1;
+const RENDER_ROWS = Math.ceil(LAYOUT.viewRows) + RENDER_PAD * 2 + 1;
 
-// Tiled tile coordinates for the top-left of the VISIBLE area
-const VIEW_TX = -8;
-const VIEW_TY = -9;
+// Tiled tile coordinates of the playable grid's top-left corner
+const GRID_TX = -6;
+const GRID_TY = -7;
+
+// Top-left of the visible window, in Tiled tiles. Half a tile of scenery puts it on a half tile, so
+// the map is drawn from the whole tile before it and shifted back by the remainder.
+const VIEW_TILE_X = GRID_TX - LAYOUT.gridPad;
+const VIEW_TILE_Y = GRID_TY - LAYOUT.gridPad;
+const VIEW_TX = Math.floor(VIEW_TILE_X);
+const VIEW_TY = Math.floor(VIEW_TILE_Y);
+const SHIFT_X = (VIEW_TX - VIEW_TILE_X) * CELL_SIZE;
+const SHIFT_Y = (VIEW_TY - VIEW_TILE_Y) * CELL_SIZE;
 
 // Render origin is shifted back by the padding
 const RENDER_TX = VIEW_TX - RENDER_PAD;
 const RENDER_TY = VIEW_TY - RENDER_PAD;
+
+// Where the playable 8x8 starts on screen
+const GRID_X = ARENA_OFFSET_X + SHIFT_X + (GRID_TX - VIEW_TX) * CELL_SIZE;
+const GRID_Y = ARENA_OFFSET_Y + SHIFT_Y + (GRID_TY - VIEW_TY) * CELL_SIZE;
 
 interface TiledTileset {
   firstgid: number;
@@ -108,7 +121,7 @@ export class Arena {
     // Water background fill
     const waterFill = this.scene.add.tileSprite(
       ARENA_OFFSET_X, ARENA_OFFSET_Y,
-      DISPLAY_COLS * CELL_SIZE, DISPLAY_ROWS * CELL_SIZE,
+      ARENA_W, ARENA_H,
       "Water_Background_color",
     ).setOrigin(0);
     this.gameObjects.push(waterFill);
@@ -141,8 +154,8 @@ export class Arena {
 
     // Grid lines on 8x8 gameplay area
     const g = this.scene.add.graphics();
-    const gx = ARENA_OFFSET_X + GAME_OFFSET * CELL_SIZE;
-    const gy = ARENA_OFFSET_Y + GAME_OFFSET * CELL_SIZE;
+    const gx = GRID_X;
+    const gy = GRID_Y;
     const gw = GRID_WIDTH * CELL_SIZE;
     const gh = GRID_HEIGHT * CELL_SIZE;
 
@@ -192,8 +205,8 @@ export class Arena {
         const localId = gid - ts.firstgid;
         const key = textureKey(ts.name);
         // Position relative to the visible area origin, offset by -RENDER_PAD
-        const screenX = ARENA_OFFSET_X + (col - RENDER_PAD) * CELL_SIZE + CELL_SIZE / 2;
-        const screenY = ARENA_OFFSET_Y + (row - RENDER_PAD) * CELL_SIZE + CELL_SIZE / 2;
+        const screenX = ARENA_OFFSET_X + SHIFT_X + (col - RENDER_PAD) * CELL_SIZE + CELL_SIZE / 2;
+        const screenY = ARENA_OFFSET_Y + SHIFT_Y + (row - RENDER_PAD) * CELL_SIZE + CELL_SIZE / 2;
 
         const animDef = ts.tiles?.find(t => t.id === localId);
         if (animDef?.animation) {
@@ -212,8 +225,8 @@ export class Arena {
 
   private renderObjectLayer(map: TiledMap, layer: TiledLayer) {
     // Pixel offset: Tiled pixel (0,0) → screen position (relative to visible origin)
-    const pxOffX = ARENA_OFFSET_X - VIEW_TX * CELL_SIZE;
-    const pxOffY = ARENA_OFFSET_Y - VIEW_TY * CELL_SIZE;
+    const pxOffX = ARENA_OFFSET_X + SHIFT_X - VIEW_TX * CELL_SIZE;
+    const pxOffY = ARENA_OFFSET_Y + SHIFT_Y - VIEW_TY * CELL_SIZE;
 
     const objects = layer.draworder === "index"
       ? layer.objects!
@@ -291,8 +304,8 @@ export class Arena {
   }
 
   private addClouds() {
-    const viewW = DISPLAY_COLS * CELL_SIZE;
-    const viewH = DISPLAY_ROWS * CELL_SIZE;
+    const viewW = ARENA_W;
+    const viewH = ARENA_H;
 
     for (let i = 0; i < 3; i++) {
       const variant = Phaser.Math.Between(1, 4);
@@ -345,8 +358,8 @@ export class Arena {
 
   gridToWorld(gridX: number, gridY: number): { x: number; y: number } {
     return {
-      x: ARENA_OFFSET_X + (gridX + GAME_OFFSET) * CELL_SIZE + CELL_SIZE / 2,
-      y: ARENA_OFFSET_Y + (gridY + GAME_OFFSET) * CELL_SIZE + CELL_SIZE / 2,
+      x: GRID_X + gridX * CELL_SIZE + CELL_SIZE / 2,
+      y: GRID_Y + gridY * CELL_SIZE + CELL_SIZE / 2,
     };
   }
 

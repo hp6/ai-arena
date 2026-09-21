@@ -24,18 +24,18 @@ const W = LAYOUT.width;
 const MARGIN = LAYOUT.margin;
 const INNER_W = W - MARGIN * 2;
 const PORTRAIT = LAYOUT.portrait;
-// Portrait metrics below were tuned when phone text was 1.35x; everything grew by half again
-const S = PORTRAIT ? 1.5 : 1;
+// Portrait metrics below are drawn against text at 1.35x, so they follow the layout's text scale
+const S = PORTRAIT ? LAYOUT.textScale / 1.35 : 1;
 /** Scales a hand-tuned portrait offset; a no-op in landscape */
 const P = (n: number) => Math.round(n * S);
 const trunc = (v: string, max: number) => (v.length > max ? v.slice(0, max - 1) + "\u2026" : v);
 
 // Portrait stacks the cards two per row, so the panels below start lower
-const SUMMARY_Y = PORTRAIT ? P(150) : 120;
+const SUMMARY_Y = PORTRAIT ? P(170) : 120;
 const SUMMARY_H = PORTRAIT ? P(190) : 78;
 
 const BOARD_Y = SUMMARY_Y + SUMMARY_H + P(20);
-const BOARD_H = PORTRAIT ? P(420) : 300;
+const BOARD_H = PORTRAIT ? P(340) : 300;
 const BOARD_ROW_H = PORTRAIT ? P(64) : 46;
 const BOARD_ROWS = Math.floor((BOARD_H - P(70)) / BOARD_ROW_H);
 
@@ -321,7 +321,7 @@ export class MenuScene extends Phaser.Scene {
           this.warriorIcon(x0 + P(40), y + P(2), m.fighterId, i, 0.3 * S),
           text(this, x0 + P(64), y + P(6), shortModel(m.model), 15, hex(m.color), { fontStyle: "bold" }).setOrigin(0, 0.5),
           text(this, MARGIN + INNER_W - P(16), y + P(6), `${m.elo}`, 17, rank === 0 ? C.gold : C.parchment, { fontStyle: "bold" }).setOrigin(1, 0.5),
-          text(this, x0 + P(64), y + P(28), stats, 12, C.muted).setOrigin(0, 0.5),
+          text(this, x0 + P(40), y + P(28), stats, 12, C.muted).setOrigin(0, 0.5),
         ]);
       });
     }
