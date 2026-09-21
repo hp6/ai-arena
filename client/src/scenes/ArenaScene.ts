@@ -202,7 +202,13 @@ export class ArenaScene extends Phaser.Scene {
       .zone(ARENA_OFFSET_X, ARENA_OFFSET_Y, DISPLAY_COLS * CELL_SIZE, DISPLAY_ROWS * CELL_SIZE)
       .setOrigin(0)
       .setInteractive()
-      .on("pointerdown", () => this.stepForward());
+      .on("pointerup", (pointer: Phaser.Input.Pointer) => {
+        // Not while a second finger is still down (a pinch-zoom), and not after a drag
+        const touches = (pointer.event as TouchEvent).touches;
+        if (touches && touches.length > 0) return;
+        if (pointer.getDistance() > 12) return;
+        this.stepForward();
+      });
     arenaCam.ignore(tap);
   }
 

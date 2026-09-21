@@ -4,7 +4,7 @@
 
 ![A match in progress: Violet strikes Crimson for 18 damage while Amber heads for the gold](docs/images/arena.png)
 
-**Watch recorded matches at [tinyaiarena.com](https://tinyaiarena.com)** — no setup, no API key.
+**See deployed on [tinyaiarena.com](https://tinyaiarena.com)**.
 
 ## Quick start
 You need an OpenRouter key to run the different models.

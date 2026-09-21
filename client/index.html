@@ -7,7 +7,9 @@
   <link rel="icon" type="image/png" href="/favicon.png" />
   <style>
     * { margin: 0; padding: 0; }
-    body { background: #161c2e; overflow: hidden; }
+    /* The canvas is scaled to fit, so nothing overflows; leaving scrolling enabled lets a
+       zoomed-in phone pan around. overscroll-behavior keeps a downward drag from pulling to refresh. */
+    body { background: #161c2e; overscroll-behavior: none; }
   </style>
 </head>
 <body>

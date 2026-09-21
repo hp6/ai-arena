@@ -14,6 +14,11 @@ const config: Phaser.Types.Core.GameConfig = {
     mode: Phaser.Scale.FIT,
     autoCenter: Phaser.Scale.CENTER_BOTH,
   },
+  input: {
+    // Phaser calls preventDefault on every touch event by default, which blocks pinch-zoom.
+    // The game only needs taps, so leave the gestures to the browser.
+    touch: { capture: false },
+  },
   scene: [BootScene, MenuScene, ArenaScene],
 };
 

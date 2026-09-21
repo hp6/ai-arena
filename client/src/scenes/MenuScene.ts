@@ -104,6 +104,12 @@ function text(
 export class MenuScene extends Phaser.Scene {
   private stats: Stats | null = null;
   private scroll = 0;
+  private boardScroll = 0;
+  // A drag that moved this far scrolled the list, so the finger that lifts is not picking a match
+  private dragFromY = 0;
+  private dragFromScroll = 0;
+  private dragDistance = 0;
+  private dragPanel: "board" | "history" | null = null;
   private summaryLayer!: Phaser.GameObjects.Container;
   private boardLayer!: Phaser.GameObjects.Container;
   private historyLayer!: Phaser.GameObjects.Container;
@@ -117,6 +123,7 @@ export class MenuScene extends Phaser.Scene {
   create() {
     this.stats = null;
     this.scroll = 0;
+    this.boardScroll = 0;
 
     text(this, MARGIN, P(28), "TINY AI ARENA", PORTRAIT ? 30 : 36, C.gold, { fontStyle: "bold", stroke: C.navy, strokeThickness: 4 });
     text(this, MARGIN, PORTRAIT ? P(66) : 72, "leaderboard & match history", 13, C.text);
@@ -146,18 +153,54 @@ export class MenuScene extends Phaser.Scene {
     this.children.bringToTop(this.boardLayer);
     this.children.bringToTop(this.historyLayer);
 
-    this.input.on("wheel", (_p: unknown, _o: unknown, _dx: number, dy: number) => {
-      if (!this.stats) return;
-      const max = Math.max(0, this.stats.matches.length - HISTORY_ROWS);
-      const next = Phaser.Math.Clamp(this.scroll + Math.sign(dy) * 3, 0, max);
-      if (next !== this.scroll) {
-        this.scroll = next;
-        this.renderHistory();
-      }
+    this.input.on("wheel", (p: Phaser.Input.Pointer, _o: unknown, _dx: number, dy: number) => {
+      const panel = this.panelAt(p.y);
+      if (panel) this.scrollTo(panel, this.scrollOf(panel) + Math.sign(dy) * 3);
+    });
+
+    // A phone has no wheel, so both lists are dragged with a finger instead
+    this.input.on("pointerdown", (p: Phaser.Input.Pointer) => {
+      this.dragPanel = this.panelAt(p.y);
+      this.dragFromY = p.y;
+      this.dragFromScroll = this.dragPanel ? this.scrollOf(this.dragPanel) : 0;
+      this.dragDistance = 0;
+    });
+    this.input.on("pointermove", (p: Phaser.Input.Pointer) => {
+      if (!this.dragPanel || !p.isDown) return;
+      const dy = p.y - this.dragFromY;
+      this.dragDistance = Math.max(this.dragDistance, Math.abs(dy));
+      const rowHeight = this.dragPanel === "board" ? BOARD_ROW_H : HISTORY_ROW_H;
+      this.scrollTo(this.dragPanel, this.dragFromScroll - Math.round(dy / rowHeight));
     });
 
     this.fetchStats();
     if (!IS_STATIC) this.time.addEvent({ delay: REFRESH_MS, loop: true, callback: () => this.fetchStats() });
+  }
+
+  /** Which list, if any, the pointer is over */
+  private panelAt(y: number): "board" | "history" | null {
+    if (y >= BOARD_Y && y <= BOARD_Y + BOARD_H) return "board";
+    if (y >= HISTORY_Y && y <= HISTORY_Y + HISTORY_H) return "history";
+    return null;
+  }
+
+  private scrollOf(panel: "board" | "history") {
+    return panel === "board" ? this.boardScroll : this.scroll;
+  }
+
+  private scrollTo(panel: "board" | "history", to: number) {
+    if (!this.stats) return;
+    const board = panel === "board";
+    const total = board ? this.stats.models.length : this.stats.matches.length;
+    const next = Phaser.Math.Clamp(to, 0, Math.max(0, total - (board ? BOARD_ROWS : HISTORY_ROWS)));
+    if (next === this.scrollOf(panel)) return;
+    if (board) {
+      this.boardScroll = next;
+      this.renderBoard();
+    } else {
+      this.scroll = next;
+      this.renderHistory();
+    }
   }
 
   private async fetchStats() {
@@ -168,6 +211,7 @@ export class MenuScene extends Phaser.Scene {
       if (!this.sys.isActive()) return;
       this.stats = stats;
       this.scroll = Math.min(this.scroll, Math.max(0, stats.matches.length - HISTORY_ROWS));
+      this.boardScroll = Math.min(this.boardScroll, Math.max(0, stats.models.length - BOARD_ROWS));
       this.statusText.setText(`Updated ${new Date().toLocaleTimeString()}`).setColor(C.muted);
       if (!IS_STATIC) {
         const live = stats.matches.filter((m) => m.status === "running").length;
@@ -236,7 +280,8 @@ export class MenuScene extends Phaser.Scene {
         return;
       }
 
-      models.slice(0, BOARD_ROWS).forEach((m, i) => {
+      models.slice(this.boardScroll, this.boardScroll + BOARD_ROWS).forEach((m, i) => {
+        const rank = this.boardScroll + i;
         const y = headY + 22 + i * BOARD_ROW_H;
         const cy = y + BOARD_ROW_H / 2;
         if (i % 2 === 0) layer.add(this.add.rectangle(MARGIN + 2, y, INNER_W - 4, BOARD_ROW_H, C.panelDark, 0.8).setOrigin(0));
@@ -244,10 +289,10 @@ export class MenuScene extends Phaser.Scene {
         const warrior = this.warriorIcon(cols.model + 18, cy - 4, m.fighterId, i, 0.32);
         const barW = 120;
         layer.add([
-          text(this, cols.rank, cy, `${i + 1}`, 16, i === 0 ? C.gold : C.text, { fontStyle: "bold" }).setOrigin(0, 0.5),
+          text(this, cols.rank, cy, `${rank + 1}`, 16, rank === 0 ? C.gold : C.text, { fontStyle: "bold" }).setOrigin(0, 0.5),
           warrior,
           text(this, cols.model + 44, cy, shortModel(m.model), 14, hex(m.color), { fontStyle: "bold" }).setOrigin(0, 0.5),
-          text(this, cols.elo, cy, `${m.elo}`, 15, i === 0 ? C.gold : C.parchment, { fontStyle: "bold" }).setOrigin(0, 0.5),
+          text(this, cols.elo, cy, `${m.elo}`, 15, rank === 0 ? C.gold : C.parchment, { fontStyle: "bold" }).setOrigin(0, 0.5),
           text(this, cols.played, cy, `${m.played}`, 14, C.text).setOrigin(0, 0.5),
           text(this, cols.wins, cy, `${m.wins}`, 14, C.parchment, { fontStyle: "bold" }).setOrigin(0, 0.5),
           this.add.rectangle(cols.rate, cy, barW, 10, C.moss).setOrigin(0, 0.5).setStrokeStyle(1, 0x161c2e),
@@ -265,23 +310,25 @@ export class MenuScene extends Phaser.Scene {
         layer.add(text(this, x0, headY, "No finished matches yet", 14, C.text));
         return;
       }
-      models.slice(0, BOARD_ROWS).forEach((m, i) => {
+      models.slice(this.boardScroll, this.boardScroll + BOARD_ROWS).forEach((m, i) => {
+        const rank = this.boardScroll + i;
         const y = headY + i * BOARD_ROW_H;
         if (i % 2 === 0) layer.add(this.add.rectangle(MARGIN + 2, y - P(6), INNER_W - 4, BOARD_ROW_H, C.panelDark, 0.8).setOrigin(0));
         // Abbreviated: at this text size the spelled-out stats line runs past the panel
         const stats = `${m.played} played · ${m.wins}W · ${Math.round(m.winRate * 100)}% · ${m.kills}K · place ${m.avgPlacement.toFixed(2)}`;
         layer.add([
-          text(this, x0, y + P(6), `${i + 1}`, 16, i === 0 ? C.gold : C.text, { fontStyle: "bold" }).setOrigin(0, 0.5),
+          text(this, x0, y + P(6), `${rank + 1}`, 16, rank === 0 ? C.gold : C.text, { fontStyle: "bold" }).setOrigin(0, 0.5),
           this.warriorIcon(x0 + P(40), y + P(2), m.fighterId, i, 0.3 * S),
           text(this, x0 + P(64), y + P(6), shortModel(m.model), 15, hex(m.color), { fontStyle: "bold" }).setOrigin(0, 0.5),
-          text(this, MARGIN + INNER_W - P(16), y + P(6), `${m.elo}`, 17, i === 0 ? C.gold : C.parchment, { fontStyle: "bold" }).setOrigin(1, 0.5),
+          text(this, MARGIN + INNER_W - P(16), y + P(6), `${m.elo}`, 17, rank === 0 ? C.gold : C.parchment, { fontStyle: "bold" }).setOrigin(1, 0.5),
           text(this, x0 + P(64), y + P(28), stats, 12, C.muted).setOrigin(0, 0.5),
         ]);
       });
     }
 
-    if (models.length > BOARD_ROWS) {
-      layer.add(text(this, MARGIN + INNER_W - P(16), BOARD_Y + BOARD_H - P(18), `+${models.length - BOARD_ROWS} more models`, 11, C.muted).setOrigin(1, 0));
+    const below = models.length - BOARD_ROWS - this.boardScroll;
+    if (below > 0) {
+      layer.add(text(this, MARGIN + INNER_W - P(16), BOARD_Y + BOARD_H - P(18), `+${below} more models — scroll`, 11, C.muted).setOrigin(1, 0));
     }
   }
 
@@ -322,7 +369,10 @@ export class MenuScene extends Phaser.Scene {
         .setInteractive({ useHandCursor: true })
         .on("pointerover", () => row.setFillStyle(C.teal, 0.7))
         .on("pointerout", () => row.setFillStyle(C.panelDark, i % 2 === 0 ? 0.8 : 0.01))
-        .on("pointerdown", () => this.scene.start("Arena", { gameId: m.id }));
+        // Opens on release, so a finger dragging the list past a row doesn't open it
+        .on("pointerup", () => {
+          if (this.dragDistance < 12) this.scene.start("Arena", { gameId: m.id });
+        });
 
       const date = new Date(m.createdAt).toLocaleString(undefined, {
         month: "short", day: "numeric", hour: "2-digit", minute: "2-digit",
