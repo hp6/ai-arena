@@ -1,5 +1,5 @@
 import Phaser from "phaser";
-import { LAYOUT } from "./layout";
+import { TEXT, UI } from "./layout";
 
 const STORAGE_KEY = "tiny-ai-arena:muted";
 
@@ -20,12 +20,12 @@ export function addMuteButton(scene: Phaser.Scene, x: number, y: number, originX
   const label = () => (muted ? "SOUND: OFF" : "SOUND: ON");
   const button = scene.add
     .text(x, y, label(), {
-      fontSize: LAYOUT.portrait ? "18px" : "13px",
+      fontSize: TEXT(13),
       fontFamily: "monospace",
       fontStyle: "bold",
       color: "#efe1ab",
       backgroundColor: "#315a6d",
-      padding: LAYOUT.portrait ? { x: 14, y: 10 } : { x: 10, y: 4 },
+      padding: { x: UI(10), y: UI(4) },
     })
     .setOrigin(originX, 0)
     .setInteractive({ useHandCursor: true });

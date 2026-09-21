@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import { ARENA_TEXT, ARENA_UI, LAYOUT } from "../utils/layout";
 import { CELL_SIZE, MAX_AP, GRID_WIDTH } from "@ai-arena/shared";
 
 import { COLORS } from "../utils/colors";
@@ -16,7 +17,8 @@ const PANEL_TEXT_OFFSET = (PANEL_SLICE.top - PANEL_MIN_H / 2) * PANEL_SCALE;
 // Panel units, so the parchment keeps a margin around the text once scaled
 const BUBBLE_PAD_X = 80;
 const BUBBLE_PAD_Y = 70;
-const BUBBLE_MAX_TEXT_W = 190;
+// Grows with the speech font so a line of chat still wraps the same way
+const BUBBLE_MAX_TEXT_W = ARENA_UI(190);
 const BUBBLE_GAP = 6;
 
 export const WARRIOR_COLORS = ["red", "blue", "purple", "yellow", "black"] as const;
@@ -74,13 +76,15 @@ export class Fighter {
     this.sprite.play({ key: `warrior_idle_${this.colorKey}`, startFrame: Phaser.Math.Between(0, 7) });
 
     this.label = scene.add.text(0, -44, name, {
-      fontSize: "11px",
+      fontSize: ARENA_TEXT(11),
       color: "#ffffff",
       fontFamily: "monospace",
       fontStyle: "bold",
       align: "center",
       stroke: "#161c2e",
       strokeThickness: 3,
+      // Bigger phone text would otherwise stretch a model name across half the board
+      ...(LAYOUT.portrait ? { wordWrap: { width: CELL_SIZE * 2.8 } } : {}),
     });
     this.label.setOrigin(0.5);
 
@@ -93,8 +97,8 @@ export class Fighter {
     this.hpBarBorder = scene.add.rectangle(0, barY, barWidth + 2, barHeight + 2);
     this.hpBarBorder.setStrokeStyle(1, 0x161c2e);
 
-    this.hpText = scene.add.text(0, barY + 8, `${hp}/${maxHp}`, {
-      fontSize: "8px",
+    this.hpText = scene.add.text(0, barY + ARENA_UI(8), `${hp}/${maxHp}`, {
+      fontSize: ARENA_TEXT(10),
       color: "#efe1ab",
       fontFamily: "monospace",
       align: "center",
@@ -104,7 +108,7 @@ export class Fighter {
 
     this.bubbleText = scene.add
       .text(0, 0, "", {
-        fontSize: "14px",
+        fontSize: ARENA_TEXT(14),
         color: "#3b3323",
         fontFamily: "monospace",
         align: "center",

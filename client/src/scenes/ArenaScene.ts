@@ -7,7 +7,7 @@ import { addMuteButton } from "../utils/sound";
 
 import { API_BASE, IS_STATIC, framesUrl, gameUrl } from "../utils/api";
 
-import { LAYOUT } from "../utils/layout";
+import { ARENA_TEXT, LAYOUT, TEXT, UI } from "../utils/layout";
 
 const PANEL_X = LAYOUT.panelX;
 const PANEL_WIDTH = LAYOUT.panelWidth;
@@ -15,14 +15,13 @@ const PANEL_WIDTH = LAYOUT.panelWidth;
 const LOG_Y = LAYOUT.logY;
 const LOG_HEIGHT = LAYOUT.logHeight;
 // Everything reads small on a phone, so text and line spacing scale up together
-const TEXT = (px: number) => `${Math.round(px * (LAYOUT.portrait ? 1.45 : 1))}px`;
-const LOG_LINE_HEIGHT = LAYOUT.portrait ? 23 : 16;
-const VISIBLE_LOG_LINES = Math.floor((LOG_HEIGHT - 40) / LOG_LINE_HEIGHT);
+const LOG_LINE_HEIGHT = UI(16);
+const VISIBLE_LOG_LINES = Math.floor((LOG_HEIGHT - UI(40)) / LOG_LINE_HEIGHT);
 
 const CHAT_Y = LAYOUT.chatY;
 const CHAT_HEIGHT = LAYOUT.chatHeight;
-const CHAT_LINE_HEIGHT = LAYOUT.portrait ? 26 : 18;
-const VISIBLE_CHAT_LINES = Math.floor((CHAT_HEIGHT - 40) / CHAT_LINE_HEIGHT);
+const CHAT_LINE_HEIGHT = UI(18);
+const VISIBLE_CHAT_LINES = Math.floor((CHAT_HEIGHT - UI(40)) / CHAT_LINE_HEIGHT);
 
 const POLL_INTERVAL = 1500;
 
@@ -67,9 +66,10 @@ export class ArenaScene extends Phaser.Scene {
     this.chatTexts = [];
 
     // Phaser 4 geometry masks don't work in WebGL; a camera viewport clips the arena instead
-    this.cameras
+    const arenaCam = this.cameras
       .add(ARENA_OFFSET_X, ARENA_OFFSET_Y, DISPLAY_COLS * CELL_SIZE, DISPLAY_ROWS * CELL_SIZE)
       .setScroll(ARENA_OFFSET_X, ARENA_OFFSET_Y);
+    this.addArenaTapTarget(arenaCam);
     this.createUI();
     this.setupInput();
     if (data?.newGame) this.startNewGame();
@@ -86,13 +86,13 @@ export class ArenaScene extends Phaser.Scene {
       fontStyle: "bold",
     });
 
-    this.roundText = this.add.text(LAYOUT.headerX, LAYOUT.headerY + 18, "", {
+    this.roundText = this.add.text(LAYOUT.headerX, LAYOUT.headerY + LAYOUT.headerLineHeight, "", {
       fontSize: TEXT(12),
       color: "#d8cfa8",
       fontFamily: "monospace",
     });
 
-    this.statusText = this.add.text(LAYOUT.headerX, LAYOUT.headerY + 36, "", {
+    this.statusText = this.add.text(LAYOUT.headerX, LAYOUT.headerY + LAYOUT.headerLineHeight * 2, "", {
       fontSize: TEXT(12),
       color: "#85b156",
       fontFamily: "monospace",
@@ -103,7 +103,7 @@ export class ArenaScene extends Phaser.Scene {
       .rectangle(PANEL_X + PANEL_WIDTH / 2, LOG_Y + LOG_HEIGHT / 2, PANEL_WIDTH, LOG_HEIGHT, 0x1e2b38, 0.95)
       .setStrokeStyle(2, 0x315a6d);
 
-    this.add.text(PANEL_X + 10, LOG_Y + 8, "GAME LOG", {
+    this.add.text(PANEL_X + 10, LOG_Y + UI(8), "GAME LOG", {
       fontSize: TEXT(13),
       color: "#e8ce91",
       fontFamily: "monospace",
@@ -112,7 +112,7 @@ export class ArenaScene extends Phaser.Scene {
 
     for (let i = 0; i < VISIBLE_LOG_LINES; i++) {
       this.logTexts.push(
-        this.add.text(PANEL_X + 10, LOG_Y + 30 + i * LOG_LINE_HEIGHT, "", {
+        this.add.text(PANEL_X + 10, LOG_Y + UI(30) + i * LOG_LINE_HEIGHT, "", {
           fontSize: TEXT(11),
           color: "#d8cfa8",
           fontFamily: "monospace",
@@ -126,7 +126,7 @@ export class ArenaScene extends Phaser.Scene {
       .rectangle(PANEL_X + PANEL_WIDTH / 2, CHAT_Y + CHAT_HEIGHT / 2, PANEL_WIDTH, CHAT_HEIGHT, 0x1b2531, 0.95)
       .setStrokeStyle(2, 0x315a6d);
 
-    this.add.text(PANEL_X + 10, CHAT_Y + 8, "GLOBAL CHAT", {
+    this.add.text(PANEL_X + 10, CHAT_Y + UI(8), "GLOBAL CHAT", {
       fontSize: TEXT(13),
       color: "#93ba4f",
       fontFamily: "monospace",
@@ -135,7 +135,7 @@ export class ArenaScene extends Phaser.Scene {
 
     for (let i = 0; i < VISIBLE_CHAT_LINES; i++) {
       this.chatTexts.push(
-        this.add.text(PANEL_X + 10, CHAT_Y + 30 + i * CHAT_LINE_HEIGHT, "", {
+        this.add.text(PANEL_X + 10, CHAT_Y + UI(30) + i * CHAT_LINE_HEIGHT, "", {
           fontSize: TEXT(11),
           color: "#d8cfa8",
           fontFamily: "monospace",
@@ -148,12 +148,12 @@ export class ArenaScene extends Phaser.Scene {
     const btnY = LAYOUT.buttonsY;
     // Bigger tap targets on phones, where there is no mouse and no keyboard shortcuts
     const btnStyle = {
-      fontSize: LAYOUT.portrait ? "22px" : "16px",
+      fontSize: TEXT(15),
       color: "#161c2e",
       fontFamily: "monospace",
       fontStyle: "bold",
       backgroundColor: "#e8ce91",
-      padding: LAYOUT.portrait ? { x: 18, y: 14 } : { x: 12, y: 4 },
+      padding: { x: UI(12), y: UI(6) },
     };
     const btnStyleAlt = { ...btnStyle, backgroundColor: "#315a6d", color: "#d8cfa8" };
 
@@ -174,12 +174,14 @@ export class ArenaScene extends Phaser.Scene {
     const rowEnd = ARENA_OFFSET_X + DISPLAY_COLS * CELL_SIZE;
     for (const [label, style, onClick] of buttons) {
       const button = this.add.text(x, y, label, style).setInteractive({ useHandCursor: true }).on("pointerdown", onClick);
-      if (label === "AUTO PLAY") this.btnAuto = button;
-      x += button.width + 12;
-      if (x > rowEnd - 90) {
+      // Wrap before drawing rather than after, so a wide button never hangs off the edge
+      if (x > LAYOUT.margin && x + button.width > rowEnd) {
         x = LAYOUT.margin;
         y += button.height + 10;
+        button.setPosition(x, y);
       }
+      if (label === "AUTO PLAY") this.btnAuto = button;
+      x += button.width + 12;
     }
     this.hintY = y + 46;
 
@@ -191,6 +193,17 @@ export class ArenaScene extends Phaser.Scene {
         fontFamily: "monospace",
       });
     }
+  }
+
+  /** A touch screen has no arrow keys, so tapping the arena steps forward exactly like NEXT */
+  private addArenaTapTarget(arenaCam: Phaser.Cameras.Scene2D.Camera) {
+    if (!this.sys.game.device.input.touch) return;
+    const tap = this.add
+      .zone(ARENA_OFFSET_X, ARENA_OFFSET_Y, DISPLAY_COLS * CELL_SIZE, DISPLAY_ROWS * CELL_SIZE)
+      .setOrigin(0)
+      .setInteractive()
+      .on("pointerdown", () => this.stepForward());
+    arenaCam.ignore(tap);
   }
 
   private setupInput() {
@@ -486,7 +499,7 @@ export class ArenaScene extends Phaser.Scene {
     const { x, y } = fighter.container;
     const label = this.add
       .text(x + Phaser.Math.Between(-6, 6), y - 20, change < 0 ? `${change}` : `+${change}`, {
-        fontSize: "20px",
+        fontSize: ARENA_TEXT(20),
         fontFamily: "monospace",
         fontStyle: "bold",
         color: change < 0 ? "#ff6b5e" : "#b6f25c",
@@ -522,8 +535,8 @@ export class ArenaScene extends Phaser.Scene {
 
     if (items.length === 0) return;
 
-    const availableHeight = panelHeight - 40;
-    const gap = 3;
+    const availableHeight = panelHeight - UI(40);
+    const gap = UI(3);
 
     const fitting: number[] = [];
     let totalHeight = 0;
@@ -541,7 +554,7 @@ export class ArenaScene extends Phaser.Scene {
     measure.setText("");
     fitting.reverse();
 
-    let y = panelY + 30;
+    let y = panelY + UI(30);
     for (let slot = 0; slot < fitting.length; slot++) {
       const item = items[fitting[slot]];
       const obj = textObjects[slot];

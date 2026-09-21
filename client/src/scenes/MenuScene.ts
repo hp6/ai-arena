@@ -24,20 +24,25 @@ const W = LAYOUT.width;
 const MARGIN = LAYOUT.margin;
 const INNER_W = W - MARGIN * 2;
 const PORTRAIT = LAYOUT.portrait;
+// Portrait metrics below were tuned when phone text was 1.35x; everything grew by half again
+const S = PORTRAIT ? 1.5 : 1;
+/** Scales a hand-tuned portrait offset; a no-op in landscape */
+const P = (n: number) => Math.round(n * S);
+const trunc = (v: string, max: number) => (v.length > max ? v.slice(0, max - 1) + "\u2026" : v);
 
 // Portrait stacks the cards two per row, so the panels below start lower
-const SUMMARY_Y = PORTRAIT ? 150 : 120;
-const SUMMARY_H = PORTRAIT ? 190 : 78;
+const SUMMARY_Y = PORTRAIT ? P(150) : 120;
+const SUMMARY_H = PORTRAIT ? P(190) : 78;
 
-const BOARD_Y = SUMMARY_Y + SUMMARY_H + 20;
-const BOARD_H = PORTRAIT ? 420 : 300;
-const BOARD_ROW_H = PORTRAIT ? 64 : 46;
-const BOARD_ROWS = Math.floor((BOARD_H - 70) / BOARD_ROW_H);
+const BOARD_Y = SUMMARY_Y + SUMMARY_H + P(20);
+const BOARD_H = PORTRAIT ? P(420) : 300;
+const BOARD_ROW_H = PORTRAIT ? P(64) : 46;
+const BOARD_ROWS = Math.floor((BOARD_H - P(70)) / BOARD_ROW_H);
 
-const HISTORY_Y = BOARD_Y + BOARD_H + 20;
-const HISTORY_H = PORTRAIT ? LAYOUT.height - HISTORY_Y - 30 : 425;
-const HISTORY_ROW_H = PORTRAIT ? 46 : 34;
-const HISTORY_ROWS = Math.floor((HISTORY_H - 76) / HISTORY_ROW_H);
+const HISTORY_Y = BOARD_Y + BOARD_H + P(20);
+const HISTORY_H = PORTRAIT ? LAYOUT.height - HISTORY_Y - P(30) : 425;
+const HISTORY_ROW_H = PORTRAIT ? P(46) : 34;
+const HISTORY_ROWS = Math.floor((HISTORY_H - P(76)) / HISTORY_ROW_H);
 
 interface MatchFighter {
   id: string;
@@ -91,8 +96,8 @@ function text(
   color: string,
   extra: Phaser.Types.GameObjects.Text.TextStyle = {},
 ) {
-  // Portrait gets larger text throughout; the title is already sized per layout
-  const px = Math.round(size * (PORTRAIT && size < 26 ? 1.35 : 1));
+  // Portrait gets larger text throughout; headings start big enough already
+  const px = Math.round(size * (PORTRAIT ? (size < 26 ? 1.35 : 1) * S : 1));
   return scene.add.text(x, y, value, { fontSize: `${px}px`, color, fontFamily: "monospace", ...extra });
 }
 
@@ -113,14 +118,14 @@ export class MenuScene extends Phaser.Scene {
     this.stats = null;
     this.scroll = 0;
 
-    text(this, MARGIN, 28, "TINY AI ARENA", PORTRAIT ? 30 : 36, C.gold, { fontStyle: "bold", stroke: C.navy, strokeThickness: 4 });
-    text(this, MARGIN, PORTRAIT ? 66 : 72, "leaderboard & match history", 13, C.text);
-    this.statusText = text(this, MARGIN, PORTRAIT ? 86 : 92, "Loading…", 12, C.muted);
+    text(this, MARGIN, P(28), "TINY AI ARENA", PORTRAIT ? 30 : 36, C.gold, { fontStyle: "bold", stroke: C.navy, strokeThickness: 4 });
+    text(this, MARGIN, PORTRAIT ? P(66) : 72, "leaderboard & match history", 13, C.text);
+    this.statusText = text(this, MARGIN, PORTRAIT ? P(86) : 92, "Loading…", 12, C.muted);
 
-    this.playButton = text(this, W - MARGIN, PORTRAIT ? 110 : 44, IS_STATIC ? "REPLAYS" : "NEW GAME", 18, C.navy, {
+    this.playButton = text(this, W - MARGIN, PORTRAIT ? P(110) : 44, IS_STATIC ? "REPLAYS" : "NEW GAME", 18, C.navy, {
       fontStyle: "bold",
       backgroundColor: C.grass,
-      padding: { x: 16, y: 8 },
+      padding: { x: P(16), y: P(8) },
     })
       .setOrigin(1, 0)
       .setInteractive({ useHandCursor: true })
@@ -130,14 +135,14 @@ export class MenuScene extends Phaser.Scene {
       });
     if (IS_STATIC) this.playButton.disableInteractive().setBackgroundColor(C.teal as unknown as string);
 
-    addMuteButton(this, PORTRAIT ? MARGIN : W - MARGIN, PORTRAIT ? 112 : 90, PORTRAIT ? 0 : 1);
+    addMuteButton(this, PORTRAIT ? MARGIN : W - MARGIN, PORTRAIT ? P(112) : 90, PORTRAIT ? 0 : 1);
 
     this.summaryLayer = this.add.container();
     this.boardLayer = this.add.container();
     this.historyLayer = this.add.container();
 
-    this.drawPanel(BOARD_Y, BOARD_H, "LEADERBOARD", C.gold, "Elo from finished matches; everyone starts at 1000");
-    this.drawPanel(HISTORY_Y, HISTORY_H, "MATCH HISTORY", "#93ba4f", "click a match to watch it");
+    this.drawPanel(BOARD_Y, BOARD_H, "LEADERBOARD", C.gold, "Elo from finished matches; everyone starts at 1000", "Elo · everyone starts at 1000");
+    this.drawPanel(HISTORY_Y, HISTORY_H, "MATCH HISTORY", "#93ba4f", "click a match to watch it", "tap a match to watch");
     this.children.bringToTop(this.boardLayer);
     this.children.bringToTop(this.historyLayer);
 
@@ -177,10 +182,11 @@ export class MenuScene extends Phaser.Scene {
     }
   }
 
-  private drawPanel(y: number, h: number, title: string, titleColor: string, hint: string) {
+  // Phone text is wide enough that the hint needs a shorter wording to clear the title
+  private drawPanel(y: number, h: number, title: string, titleColor: string, hint: string, shortHint: string) {
     this.add.rectangle(MARGIN, y, INNER_W, h, C.panel, 0.95).setOrigin(0).setStrokeStyle(2, C.teal);
-    text(this, MARGIN + 16, y + 12, title, 15, titleColor, { fontStyle: "bold" });
-    text(this, MARGIN + INNER_W - 16, y + 14, hint, 11, C.muted).setOrigin(1, 0);
+    text(this, MARGIN + P(16), y + P(12), title, 15, titleColor, { fontStyle: "bold" });
+    text(this, MARGIN + INNER_W - P(16), y + P(14), PORTRAIT ? shortHint : hint, 11, C.muted).setOrigin(1, 0);
   }
 
   private renderSummary() {
@@ -194,18 +200,18 @@ export class MenuScene extends Phaser.Scene {
       ["INTERRUPTED", `${t.interrupted}`, C.red],
       ["AVG ROUNDS", t.avgRounds.toFixed(1), C.parchment],
     ];
-    const gap = 16;
+    const gap = P(16);
     // One row of five in landscape; portrait wraps to three per row
     const perRow = PORTRAIT ? 3 : cards.length;
     const w = (INNER_W - gap * (perRow - 1)) / perRow;
-    const h = PORTRAIT ? 86 : 78;
+    const h = PORTRAIT ? P(86) : 78;
     cards.forEach(([label, value, color], i) => {
       const x = MARGIN + (i % perRow) * (w + gap);
       const y = SUMMARY_Y + Math.floor(i / perRow) * (h + gap);
       layer.add([
         this.add.rectangle(x, y, w, h, C.panelDark, 0.95).setOrigin(0).setStrokeStyle(2, C.teal),
-        text(this, x + 14, y + 12, value, PORTRAIT ? 26 : 30, color, { fontStyle: "bold" }),
-        text(this, x + 14, y + (PORTRAIT ? 56 : 52), label, 11, C.muted),
+        text(this, x + P(14), y + P(12), value, PORTRAIT ? 26 : 30, color, { fontStyle: "bold" }),
+        text(this, x + P(14), y + (PORTRAIT ? P(56) : 52), label, 11, C.muted),
       ]);
     });
   }
@@ -214,8 +220,8 @@ export class MenuScene extends Phaser.Scene {
     const layer = this.boardLayer;
     layer.removeAll(true);
     const models = this.stats!.models;
-    const x0 = MARGIN + 16;
-    const headY = BOARD_Y + 42;
+    const x0 = MARGIN + P(16);
+    const headY = BOARD_Y + P(42);
 
     if (!PORTRAIT) {
       const cols = { rank: x0, model: x0 + 40, elo: 500, played: 590, wins: 670, rate: 750, kills: 970, dealt: 1055, taken: 1165, place: 1280 };
@@ -261,19 +267,21 @@ export class MenuScene extends Phaser.Scene {
       }
       models.slice(0, BOARD_ROWS).forEach((m, i) => {
         const y = headY + i * BOARD_ROW_H;
-        if (i % 2 === 0) layer.add(this.add.rectangle(MARGIN + 2, y - 6, INNER_W - 4, BOARD_ROW_H, C.panelDark, 0.8).setOrigin(0));
+        if (i % 2 === 0) layer.add(this.add.rectangle(MARGIN + 2, y - P(6), INNER_W - 4, BOARD_ROW_H, C.panelDark, 0.8).setOrigin(0));
+        // Abbreviated: at this text size the spelled-out stats line runs past the panel
+        const stats = `${m.played} played · ${m.wins}W · ${Math.round(m.winRate * 100)}% · ${m.kills}K · place ${m.avgPlacement.toFixed(2)}`;
         layer.add([
-          text(this, x0, y + 6, `${i + 1}`, 16, i === 0 ? C.gold : C.text, { fontStyle: "bold" }).setOrigin(0, 0.5),
-          this.warriorIcon(x0 + 40, y + 2, m.fighterId, i, 0.3),
-          text(this, x0 + 64, y + 6, shortModel(m.model), 15, hex(m.color), { fontStyle: "bold" }).setOrigin(0, 0.5),
-          text(this, MARGIN + INNER_W - 16, y + 6, `${m.elo}`, 17, i === 0 ? C.gold : C.parchment, { fontStyle: "bold" }).setOrigin(1, 0.5),
-          text(this, x0 + 64, y + 28, `${m.played} played · ${m.wins} wins · ${Math.round(m.winRate * 100)}% · ${m.kills} kills · place ${m.avgPlacement.toFixed(2)}`, 12, C.muted).setOrigin(0, 0.5),
+          text(this, x0, y + P(6), `${i + 1}`, 16, i === 0 ? C.gold : C.text, { fontStyle: "bold" }).setOrigin(0, 0.5),
+          this.warriorIcon(x0 + P(40), y + P(2), m.fighterId, i, 0.3 * S),
+          text(this, x0 + P(64), y + P(6), shortModel(m.model), 15, hex(m.color), { fontStyle: "bold" }).setOrigin(0, 0.5),
+          text(this, MARGIN + INNER_W - P(16), y + P(6), `${m.elo}`, 17, i === 0 ? C.gold : C.parchment, { fontStyle: "bold" }).setOrigin(1, 0.5),
+          text(this, x0 + P(64), y + P(28), stats, 12, C.muted).setOrigin(0, 0.5),
         ]);
       });
     }
 
     if (models.length > BOARD_ROWS) {
-      layer.add(text(this, MARGIN + INNER_W - 16, BOARD_Y + BOARD_H - 18, `+${models.length - BOARD_ROWS} more models`, 11, C.muted).setOrigin(1, 0));
+      layer.add(text(this, MARGIN + INNER_W - P(16), BOARD_Y + BOARD_H - P(18), `+${models.length - BOARD_ROWS} more models`, 11, C.muted).setOrigin(1, 0));
     }
   }
 
@@ -286,9 +294,9 @@ export class MenuScene extends Phaser.Scene {
     const layer = this.historyLayer;
     layer.removeAll(true);
     const matches = this.stats!.matches;
-    const x0 = MARGIN + 16;
+    const x0 = MARGIN + P(16);
     const cols = { id: x0, date: x0 + 110, status: x0 + 300, winner: x0 + 440, rounds: 900, turns: 990, kills: 1080 };
-    const headY = HISTORY_Y + 44;
+    const headY = HISTORY_Y + P(44);
 
     const head: [keyof typeof cols, string][] = [
       ["id", "MATCH"], ["date", "DATE"], ["status", "STATUS"], ["winner", "WINNER"],
@@ -304,7 +312,7 @@ export class MenuScene extends Phaser.Scene {
     const statusColor = { finished: C.grass, running: C.gold, interrupted: C.red };
 
     matches.slice(this.scroll, this.scroll + HISTORY_ROWS).forEach((m, i) => {
-      const y = headY + 24 + i * HISTORY_ROW_H;
+      const y = headY + P(24) + i * HISTORY_ROW_H;
       const cy = y + HISTORY_ROW_H / 2;
       const winner = m.fighters.find((f) => f.id === m.winnerId);
 
@@ -325,11 +333,12 @@ export class MenuScene extends Phaser.Scene {
         // Two lines per match: id and status on top, winner and counts underneath
         layer.add([
           row,
-          text(this, cols.id, cy - 10, m.id, 14, C.parchment, { fontStyle: "bold" }).setOrigin(0, 0.5),
-          text(this, cols.id + 90, cy - 10, m.status.toUpperCase(), 11, statusColor[m.status], { fontStyle: "bold" }).setOrigin(0, 0.5),
-          text(this, MARGIN + INNER_W - 16, cy - 10, date, 12, C.muted).setOrigin(1, 0.5),
-          text(this, cols.id, cy + 10, winnerLabel, 13, winner ? hex(winner.color) : C.muted, { fontStyle: winner ? "bold" : "normal" }).setOrigin(0, 0.5),
-          text(this, MARGIN + INNER_W - 16, cy + 10, `${m.rounds} rounds · ${m.turns} actions`, 12, C.text).setOrigin(1, 0.5),
+          text(this, cols.id, cy - P(10), m.id, 14, C.parchment, { fontStyle: "bold" }).setOrigin(0, 0.5),
+          text(this, cols.id + P(90), cy - P(10), m.status.toUpperCase(), 11, statusColor[m.status], { fontStyle: "bold" }).setOrigin(0, 0.5),
+          text(this, MARGIN + INNER_W - P(16), cy - P(10), date, 12, C.muted).setOrigin(1, 0.5),
+          // The winner carries its model name, which has to give way to the counts on its right
+          text(this, cols.id, cy + P(10), trunc(winnerLabel, 24), 12, winner ? hex(winner.color) : C.muted, { fontStyle: winner ? "bold" : "normal" }).setOrigin(0, 0.5),
+          text(this, MARGIN + INNER_W - P(16), cy + P(10), `${m.rounds} rounds · ${m.turns} actions`, 11, C.text).setOrigin(1, 0.5),
         ]);
         return;
       }
