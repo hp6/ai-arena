@@ -27,12 +27,11 @@ Monorepo with npm workspaces: `shared/`, `client/`, `server/`.
 - `server/src/ai/AgentConfig.ts` — Per-fighter model config and defaults
 - `server/src/routes/game.ts` — REST API endpoints (create, list, metadata, frames)
 
-### Default AI Models
+### AI Models
 
-- Fighter 0 (Crimson): `deepseek/deepseek-v4-flash-0731`
-- Fighter 1 (Azure): `google/gemini-3.6-flash`
-- Fighter 2 (Violet): `anthropic/claude-sonnet-5`
-- Fighter 3 (Amber): `openai/gpt-5.6-luna-pro`
+`MODEL_POOL` in `server/src/ai/AgentConfig.ts` lists every model that can play; each new game draws 4 of them at random and assigns them to Crimson, Azure, Violet and Amber in that order. Models with a `provider` are pinned to it (the only one serving them with structured output support, or the fastest endpoint).
+
+Currently: `deepseek/deepseek-v4-flash-0731` (Makora), `google/gemini-3.6-flash`, `anthropic/claude-sonnet-5`, `openai/gpt-5.6-luna-pro`, `anthropic/claude-fable-5.1` (Anthropic), `qwen/qwen3.8-max-0902` (Alibaba), `x-ai/grok-4.6` (xAI), `moonshotai/kimi-k2.6` (Baidu).
 
 ### API Endpoints
 
@@ -85,7 +84,8 @@ cd server && npx tsc --noEmit
 - `@ai-arena/shared` is resolved via Vite alias + tsconfig paths (no build step needed)
 - OpenRouter API key stored in `.env` as `OR_KEY`
 - Dead players cannot chat
-- Fighter names display their model (e.g. "Crimson [deepseek-v4-flash-0731]")
+- Fighter names display their model (e.g. "Crimson [deepseek-v4-flash-0731]"), so which model plays which colour changes per game
+- Leaderboard ranks by Elo (start 1000, each match scored as a round-robin by finishing place), which stays fair when models have played different numbers of matches
 
 ## Game Constants
 

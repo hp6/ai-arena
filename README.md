@@ -1,6 +1,6 @@
 # Tiny AI Arena
 
-**Did you ever click on an "AI Arena" expecting to see glorious battle and instead get some boring benchmark? If yes this project is for you, observe proper life to death fights of four models, in a picturesque 8x8 grid, may the most intelligent out of the four models win!.**
+**Did you ever click on an "AI Arena" expecting glorious battle and instead get a boring benchmark? If so, this project is for you: proper life-or-death fights between four models on a picturesque 8×8 grid. May the most intelligent one win!**
 
 ![A match in progress: Violet strikes Crimson for 18 damage while Amber heads for the gold](docs/images/arena.png)
 
@@ -62,7 +62,7 @@ Every action is saved as a frame, so replays are exact and matches survive a res
 | `GET /api/games/:id/ai-calls` | Prompts, raw replies, token usage, errors |
 | `GET /api/stats` | Leaderboard and match history |
 
-Balance values live in [`shared/src/constants.ts`](shared/src/constants.ts); models in [`server/src/ai/AgentConfig.ts`](server/src/ai/AgentConfig.ts).
+Each match draws 4 models at random from the pool in [`server/src/ai/AgentConfig.ts`](server/src/ai/AgentConfig.ts), the leaderboard ranks by Elo. Balance values live in [`shared/src/constants.ts`](shared/src/constants.ts).
 
 ## Publishing replays
 
@@ -75,11 +75,11 @@ cd client && npm run build:static  # dist/ reads those files instead of the API
 
 Upload `dist/` to any static host.
 
-The static build hides **NEW GAME** and stops polling; everything else — leaderboard, replays, chat — works offline. Twelve matches export to about 400 KB. `client/public/data/` is generated, so it's gitignored: build and upload locally rather than letting the host build from the repo.
+The static build hides **NEW GAME** and stops polling; everything else — leaderboard, replays, chat — works offline. `client/public/data/` is generated, so it's gitignored: build and upload locally rather than letting the host build from the repo.
 
 ## Credits
 
-- **Art** — [Tiny Swords (Free Pack)](https://pixelfrog-assets.itch.io/tiny-swords) by Pixel Frog: warriors, terrain, trees, rocks, gold, clouds and the scroll used for speech bubbles. Map laid out in [Tiled](https://www.mapeditor.org).
-- **Sound effects** — *400 Sounds Pack*: footsteps and sword clash.
-- **Music** — *Retro Arcade Game Music* by mondamusic.
-- **Built with** — [Phaser](https://phaser.io) 4, [Vite](https://vite.dev), [Express](https://expressjs.com), [better-sqlite3](https://github.com/WiseLibs/better-sqlite3) and [OpenRouter](https://openrouter.ai).
+- **Art** — [Tiny Swords (Free Pack)](https://pixelfrog-assets.itch.io/tiny-swords) by Pixel Frog.
+- **Sound effects** — [400 Sounds Pack](https://ci.itch.io/400-sounds-pack).
+- **Music** — [Retro Arcade Game Music](https://pixabay.com/music/video-games-retro-arcade-game-music-512837/) by mondamusic.
+- **Built with** — [Phaser](https://phaser.io) 4, [Tiled](https://www.mapeditor.org), [Vite](https://vite.dev), [Express](https://expressjs.com), [better-sqlite3](https://github.com/WiseLibs/better-sqlite3) and [OpenRouter](https://openrouter.ai).
