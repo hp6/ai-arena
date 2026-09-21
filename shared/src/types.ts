@@ -60,7 +60,9 @@ export interface GameFrame {
   activeFighterId: string;
   round: number;
   logEntry: TurnLogEntry;
-  chatMessages: ChatMessage[];
+  /** Only the lines said on this frame; older matches instead carry the whole conversation so far */
+  chat?: { fighterId: string; text: string }[];
+  chatMessages?: ChatMessage[];
   gold?: Position | null;
 }
 

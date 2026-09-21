@@ -2,7 +2,7 @@ import Phaser from "phaser";
 import { warriorColor } from "../objects/Fighter";
 import { addMuteButton } from "../utils/sound";
 
-const STATS_URL = "http://localhost:3001/api/stats";
+import { STATS_URL, IS_STATIC } from "../utils/api";
 const REFRESH_MS = 5000;
 
 const C = {
@@ -55,6 +55,7 @@ interface MatchSummary {
 
 interface ModelStats {
   model: string;
+  elo: number;
   fighterId: string;
   color: number;
   played: number;
@@ -108,7 +109,7 @@ export class MenuScene extends Phaser.Scene {
     text(this, MARGIN, 72, "LLM battle royale — leaderboard & match history", 13, C.text);
     this.statusText = text(this, MARGIN, 92, "Loading…", 12, C.muted);
 
-    this.playButton = text(this, W - MARGIN, 44, "NEW GAME", 18, C.navy, {
+    this.playButton = text(this, W - MARGIN, 44, IS_STATIC ? "REPLAYS" : "NEW GAME", 18, C.navy, {
       fontStyle: "bold",
       backgroundColor: C.grass,
       padding: { x: 16, y: 8 },
@@ -116,10 +117,12 @@ export class MenuScene extends Phaser.Scene {
       .setOrigin(1, 0)
       .setInteractive({ useHandCursor: true })
       .on("pointerdown", () => {
+        if (IS_STATIC) return;
         // Only one game can run at a time, so while one is live this button watches it instead
         const live = this.stats?.matches.find((m) => m.status === "running");
         this.scene.start("Arena", live ? { gameId: live.id } : { newGame: true });
       });
+    if (IS_STATIC) this.playButton.disableInteractive().setBackgroundColor(C.teal as unknown as string);
 
     addMuteButton(this, W - MARGIN, 90, 1);
 
@@ -127,7 +130,7 @@ export class MenuScene extends Phaser.Scene {
     this.boardLayer = this.add.container();
     this.historyLayer = this.add.container();
 
-    this.drawPanel(BOARD_Y, BOARD_H, "LEADERBOARD", C.gold, "finished matches only");
+    this.drawPanel(BOARD_Y, BOARD_H, "LEADERBOARD", C.gold, "Elo from finished matches; everyone starts at 1000");
     this.drawPanel(HISTORY_Y, HISTORY_H, "MATCH HISTORY", "#93ba4f", "click a match to watch it");
     this.children.bringToTop(this.boardLayer);
     this.children.bringToTop(this.historyLayer);
@@ -143,7 +146,7 @@ export class MenuScene extends Phaser.Scene {
     });
 
     this.fetchStats();
-    this.time.addEvent({ delay: REFRESH_MS, loop: true, callback: () => this.fetchStats() });
+    if (!IS_STATIC) this.time.addEvent({ delay: REFRESH_MS, loop: true, callback: () => this.fetchStats() });
   }
 
   private async fetchStats() {
@@ -155,14 +158,16 @@ export class MenuScene extends Phaser.Scene {
       this.stats = stats;
       this.scroll = Math.min(this.scroll, Math.max(0, stats.matches.length - HISTORY_ROWS));
       this.statusText.setText(`Updated ${new Date().toLocaleTimeString()}`).setColor(C.muted);
-      const live = stats.matches.find((m) => m.status === "running");
-      this.playButton.setText(live ? `WATCH LIVE: ${live.id}` : "NEW GAME").setBackgroundColor(live ? C.gold : C.grass);
+      if (!IS_STATIC) {
+        const live = stats.matches.find((m) => m.status === "running");
+        this.playButton.setText(live ? `WATCH LIVE: ${live.id}` : "NEW GAME").setBackgroundColor(live ? C.gold : C.grass);
+      }
       this.renderSummary();
       this.renderBoard();
       this.renderHistory();
     } catch {
       if (!this.sys.isActive()) return;
-      this.statusText.setText("Can't reach the server on :3001").setColor(C.red);
+      this.statusText.setText(IS_STATIC ? "Replay data missing" : "Can't reach the server on :3001").setColor(C.red);
     }
   }
 
@@ -200,11 +205,11 @@ export class MenuScene extends Phaser.Scene {
     layer.removeAll(true);
     const models = this.stats!.models;
     const x0 = MARGIN + 16;
-    const cols = { rank: x0, model: x0 + 40, played: 560, wins: 650, rate: 740, kills: 950, dealt: 1040, taken: 1150, place: 1260 };
+    const cols = { rank: x0, model: x0 + 40, elo: 500, played: 590, wins: 670, rate: 750, kills: 970, dealt: 1055, taken: 1165, place: 1280 };
     const headY = BOARD_Y + 42;
 
     const head: [keyof typeof cols, string][] = [
-      ["rank", "#"], ["model", "MODEL"], ["played", "PLAYED"], ["wins", "WINS"], ["rate", "WIN RATE"],
+      ["rank", "#"], ["model", "MODEL"], ["elo", "ELO"], ["played", "PLAYED"], ["wins", "WINS"], ["rate", "WIN RATE"],
       ["kills", "KILLS"], ["dealt", "DMG DEALT"], ["taken", "DMG TAKEN"], ["place", "AVG PLACE"],
     ];
     for (const [k, label] of head) layer.add(text(this, cols[k], headY, label, 11, C.muted, { fontStyle: "bold" }));
@@ -227,6 +232,7 @@ export class MenuScene extends Phaser.Scene {
         text(this, cols.rank, cy, `${i + 1}`, 16, i === 0 ? C.gold : C.text, { fontStyle: "bold" }).setOrigin(0, 0.5),
         warrior,
         text(this, cols.model + 44, cy, shortModel(m.model), 14, hex(m.color), { fontStyle: "bold" }).setOrigin(0, 0.5),
+        text(this, cols.elo, cy, `${m.elo}`, 15, i === 0 ? C.gold : C.parchment, { fontStyle: "bold" }).setOrigin(0, 0.5),
         text(this, cols.played, cy, `${m.played}`, 14, C.text).setOrigin(0, 0.5),
         text(this, cols.wins, cy, `${m.wins}`, 14, C.parchment, { fontStyle: "bold" }).setOrigin(0, 0.5),
         this.add.rectangle(cols.rate, cy, barW, 10, C.moss).setOrigin(0, 0.5).setStrokeStyle(1, 0x161c2e),

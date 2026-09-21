@@ -5,7 +5,7 @@ import { Arena, ARENA_OFFSET_X, ARENA_OFFSET_Y } from "../objects/Arena";
 import { Fighter } from "../objects/Fighter";
 import { addMuteButton } from "../utils/sound";
 
-const API_BASE = "http://localhost:3001/api/games";
+import { API_BASE, IS_STATIC, framesUrl, gameUrl } from "../utils/api";
 
 const PANEL_X = 858;
 const PANEL_WIDTH = 620;
@@ -180,9 +180,11 @@ export class ArenaScene extends Phaser.Scene {
       .setInteractive({ useHandCursor: true })
       .on("pointerdown", () => this.toggleAutoPlay());
 
-    this.add.text(550, btnY, "NEW GAME", { ...btnStyleAlt, backgroundColor: "#85b156", color: "#161c2e" })
-      .setInteractive({ useHandCursor: true })
-      .on("pointerdown", () => this.startNewGame());
+    if (!IS_STATIC) {
+      this.add.text(550, btnY, "NEW GAME", { ...btnStyleAlt, backgroundColor: "#85b156", color: "#161c2e" })
+        .setInteractive({ useHandCursor: true })
+        .on("pointerdown", () => this.startNewGame());
+    }
 
     this.add.text(700, btnY, "MENU", { ...btnStyleAlt })
       .setInteractive({ useHandCursor: true })
@@ -213,11 +215,11 @@ export class ArenaScene extends Phaser.Scene {
 
     const session = this.session;
     try {
-      const metaResp = await fetch(`${API_BASE}/${gameId}`);
+      const metaResp = await fetch(gameUrl(gameId));
       if (!metaResp.ok) return;
       const meta = await metaResp.json();
 
-      const framesResp = await fetch(`${API_BASE}/${gameId}/frames?after=-1`);
+      const framesResp = await fetch(framesUrl(gameId, -1));
       if (!framesResp.ok) return;
       const framesData = await framesResp.json();
       if (session !== this.session) return;
@@ -315,7 +317,7 @@ export class ArenaScene extends Phaser.Scene {
     const { session, gameId } = this;
     try {
       const after = this.frames.length - 1;
-      const resp = await fetch(`${API_BASE}/${gameId}/frames?after=${after}`);
+      const resp = await fetch(framesUrl(gameId, after));
       if (!resp.ok) return;
 
       const data = await resp.json();
@@ -424,7 +426,7 @@ export class ArenaScene extends Phaser.Scene {
     this.arena!.setGold(frame.gold ?? null);
 
     // Show a speech bubble only for a line that was said on this frame
-    const said = this.currentFrame > 0 ? frame.chatMessages.slice(this.frames[this.currentFrame - 1].chatMessages.length) : [];
+    const said = this.saidOn(this.currentFrame);
     for (const f of this.fighters) {
       const line = said.filter((m) => m.fighterId === f.id).pop();
       f.showChat(line?.text ?? null);
@@ -469,6 +471,20 @@ export class ArenaScene extends Phaser.Scene {
 
     this.updateLog();
     this.updateChat();
+  }
+
+  /** New matches store only what was said on each frame; older ones repeat the whole conversation */
+  private saidOn(index: number): { fighterId: string; text: string }[] {
+    const frame = this.frames[index];
+    if (frame.chat) return frame.chat;
+    const previous = index > 0 ? (this.frames[index - 1].chatMessages?.length ?? 0) : 0;
+    return (frame.chatMessages ?? []).slice(previous);
+  }
+
+  private chatUpTo(index: number) {
+    const lines: { fighterId: string; text: string }[] = [];
+    for (let i = 0; i <= index; i++) lines.push(...this.saidOn(i));
+    return lines;
   }
 
   private showHpChange(fighter: Fighter, change: number) {
@@ -587,12 +603,15 @@ export class ArenaScene extends Phaser.Scene {
       return;
     }
 
-    const messages = this.frames[this.currentFrame].chatMessages;
-    const items = messages.map((msg, i) => ({
-      text: `${msg.fighterName}: ${msg.text}`,
-      color: "#" + msg.fighterColor.toString(16).padStart(6, "0"),
-      bold: i === messages.length - 1,
-    }));
+    const messages = this.chatUpTo(this.currentFrame);
+    const items = messages.map((msg, i) => {
+      const speaker = this.fighters.find((f) => f.id === msg.fighterId);
+      return {
+        text: `${speaker?.name ?? msg.fighterId}: ${msg.text}`,
+        color: "#" + (speaker?.color ?? 0xffffff).toString(16).padStart(6, "0"),
+        bold: i === messages.length - 1,
+      };
+    });
 
     this.layoutPanel(this.chatTexts, CHAT_Y, CHAT_HEIGHT, items);
   }

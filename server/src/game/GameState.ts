@@ -26,14 +26,25 @@ export function randomObstacles(count: number, spawns: Position[]): Position[] {
     }
   }
 
-  for (;;) {
+  // Reshuffle until a layout passes; a bad count or spawn set could otherwise loop forever
+  for (let attempt = 0; attempt < 200; attempt++) {
     for (let i = candidates.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [candidates[i], candidates[j]] = [candidates[j], candidates[i]];
     }
     const obstacles = candidates.slice(0, count);
-    if (isBoardConnected(new Set(obstacles.map(key)))) return obstacles.map((o) => ({ ...o }));
+    const blocked = new Set(obstacles.map(key));
+    // Nobody may be walled in: the whole board stays one piece and every spawn can reach every other
+    if (isBoardConnected(blocked) && spawnsCanMeet(blocked, spawns)) return obstacles.map((o) => ({ ...o }));
   }
+
+  console.warn(`[GameState] No valid layout for ${count} obstacles after 200 tries; playing without them`);
+  return [];
+}
+
+function spawnsCanMeet(blocked: Set<string>, spawns: Position[]): boolean {
+  const reachable = walkDistances(spawns[0], blocked);
+  return spawns.every((s) => reachable.has(`${s.x},${s.y}`));
 }
 
 function isBoardConnected(blocked: Set<string>): boolean {

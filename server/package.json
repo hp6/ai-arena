@@ -4,7 +4,8 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "dev": "tsx watch src/index.ts"
+    "dev": "tsx watch src/index.ts",
+    "export": "tsx src/export.ts"
   },
   "dependencies": {
     "@ai-arena/shared": "*",

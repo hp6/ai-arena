@@ -18,6 +18,12 @@ import { createGameRecord, insertFrame, updateGameStatus } from "../db/database.
 
 const runningGames = new Set<string>();
 
+/** The match's chat, plus how much of it has already been written to a frame */
+interface ChatLog {
+  all: ChatMessage[];
+  committed: number;
+}
+
 export function isGameRunning(gameId: string): boolean {
   return runningGames.has(gameId);
 }
@@ -63,9 +69,9 @@ export function startGame(agents?: AgentConfig[]): string {
 
   // Record opening frames
   let frameIndex = 0;
-  const chat: ChatMessage[] = [];
+  const chat: ChatLog = { all: [], committed: 0 };
   for (const entry of state.log) {
-    const frame = snapshot(state, entry, chat);
+    const frame = snapshot(state, entry, []);
     insertFrame(state.id, frameIndex++, frame);
   }
 
@@ -85,7 +91,7 @@ export function startGame(agents?: AgentConfig[]): string {
   return state.id;
 }
 
-function snapshot(state: GameState, logEntry: TurnLogEntry, chat: ChatMessage[]): GameFrame {
+function snapshot(state: GameState, logEntry: TurnLogEntry, newChat: ChatMessage[]): GameFrame {
   return {
     fighters: state.fighters.map((f) => ({
       gridX: f.position.x,
@@ -98,26 +104,29 @@ function snapshot(state: GameState, logEntry: TurnLogEntry, chat: ChatMessage[])
     activeFighterId: logEntry.fighterId,
     round: logEntry.round,
     logEntry,
-    chatMessages: chat.map((c) => ({ ...c })),
+    // Only what was said since the last frame; names and colours come from the game's fighter list
+    chat: newChat.map((c) => ({ fighterId: c.fighterId, text: c.text })),
     gold: state.gold ? { ...state.gold } : null,
   };
 }
 
-function pushChat(chat: ChatMessage[], state: GameState, msg: ChatMessage) {
+function pushChat(chat: ChatLog, state: GameState, msg: ChatMessage) {
   const capped = { ...msg, text: msg.text.slice(0, MAX_CHAT_LENGTH) };
-  chat.push(capped);
+  chat.all.push(capped);
   state.chat.push(capped);
 }
 
 function commitFrame(
   state: GameState,
   entry: TurnLogEntry,
-  chat: ChatMessage[],
+  chat: ChatLog,
   gameId: string,
   frameIndex: number,
 ): number {
   state.log.push(entry);
-  const frame = snapshot(state, entry, chat);
+  const said = chat.all.slice(chat.committed);
+  chat.committed = chat.all.length;
+  const frame = snapshot(state, entry, said);
   insertFrame(gameId, frameIndex, frame);
   return frameIndex + 1;
 }
@@ -125,7 +134,7 @@ function commitFrame(
 async function runGameLoop(
   state: GameState,
   agents: AgentConfig[],
-  chat: ChatMessage[],
+  chat: ChatLog,
   frameIndex: number,
 ) {
   runningGames.add(state.id);
@@ -392,7 +401,7 @@ function executeOneAction(state: GameState, fighterId: string, action: Action, a
 
 function advanceTurn(
   state: GameState,
-  chat: ChatMessage[],
+  chat: ChatLog,
   gameId: string,
   frameIndex: number,
 ): number {

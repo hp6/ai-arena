@@ -24,6 +24,8 @@ export interface MatchSummary {
 
 export interface ModelStats {
   model: string;
+  /** Rating from finished matches; fair even when models have played very different numbers of games */
+  elo: number;
   fighterId: string;
   color: number;
   played: number;
@@ -33,6 +35,37 @@ export interface ModelStats {
   damageDealt: number;
   damageTaken: number;
   avgPlacement: number;
+}
+
+const START_ELO = 1000;
+const K_FACTOR = 32;
+
+/**
+ * Each match is scored as a mini round-robin: every pair of fighters is a head-to-head
+ * decided by finishing place, and the K factor is split across those pairings.
+ */
+function eloByModel(oldestFirst: MatchSummary[]): Map<string, number> {
+  const elo = new Map<string, number>();
+  const rating = (model: string) => elo.get(model) ?? START_ELO;
+
+  for (const match of oldestFirst) {
+    const players = match.fighters.filter((f) => f.placement !== null);
+    if (players.length < 2) continue;
+
+    const k = K_FACTOR / (players.length - 1);
+    const deltas = players.map((a) =>
+      players.reduce((sum, b) => {
+        if (a === b) return sum;
+        const expected = 1 / (1 + 10 ** ((rating(b.model) - rating(a.model)) / 400));
+        const score = a.placement! < b.placement! ? 1 : a.placement! === b.placement! ? 0.5 : 0;
+        return sum + k * (score - expected);
+      }, 0),
+    );
+    // Applied together so everyone in a match is rated against the same starting numbers
+    players.forEach((p, i) => elo.set(p.model, rating(p.model) + deltas[i]));
+  }
+
+  return elo;
 }
 
 export interface Stats {
@@ -121,7 +154,7 @@ export function computeStats(): Stats {
       let m = models.get(f.model);
       if (!m) {
         // Games are newest-first, so slot and color come from the model's latest match
-        m = { model: f.model, fighterId: f.id, color: f.color, played: 0, wins: 0, winRate: 0, kills: 0, damageDealt: 0, damageTaken: 0, avgPlacement: 0, placementSum: 0 };
+        m = { model: f.model, fighterId: f.id, color: f.color, elo: START_ELO, played: 0, wins: 0, winRate: 0, kills: 0, damageDealt: 0, damageTaken: 0, avgPlacement: 0, placementSum: 0 };
         models.set(f.model, m);
       }
       m.played++;
@@ -133,6 +166,7 @@ export function computeStats(): Stats {
     });
   }
 
+  const elo = eloByModel([...matches].reverse());
   const finished = games.filter((g) => g.status === "finished").length;
   return {
     totals: {
@@ -143,8 +177,13 @@ export function computeStats(): Stats {
       avgRounds: finished ? roundsSum / finished : 0,
     },
     models: [...models.values()]
-      .map(({ placementSum, ...m }) => ({ ...m, winRate: m.wins / m.played, avgPlacement: placementSum / m.played }))
-      .sort((a, b) => b.wins - a.wins || b.winRate - a.winRate || a.avgPlacement - b.avgPlacement),
+      .map(({ placementSum, ...m }) => ({
+        ...m,
+        elo: Math.round(elo.get(m.model) ?? START_ELO),
+        winRate: m.wins / m.played,
+        avgPlacement: placementSum / m.played,
+      }))
+      .sort((a, b) => b.elo - a.elo || b.wins - a.wins || a.avgPlacement - b.avgPlacement),
     matches,
   };
 }

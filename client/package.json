@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "build:static": "VITE_DATA_BASE=./data vite build"
   },
   "dependencies": {
     "@ai-arena/shared": "*",
