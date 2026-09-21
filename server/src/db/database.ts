@@ -72,8 +72,15 @@ export function initDb(): void {
     db.exec("ALTER TABLE games ADD COLUMN summary TEXT");
   }
 
-  // Mark any games that were still running when the server last shut down.
-  db.prepare("UPDATE games SET status = 'interrupted' WHERE status = 'running'").run();
+}
+
+/**
+ * Crash recovery for the game server only: a game left marked running belongs to a process
+ * that is gone. Other tools (the exporter, scripts) must not call this — it would flag
+ * matches that are alive and playing in the server process.
+ */
+export function markAbandonedGamesInterrupted(): number {
+  return db.prepare("UPDATE games SET status = 'interrupted' WHERE status = 'running'").run().changes;
 }
 
 export function getNextGameId(): number {

@@ -1,6 +1,7 @@
 import Phaser from "phaser";
 import { warriorColor } from "../objects/Fighter";
 import { addMuteButton } from "../utils/sound";
+import { LAYOUT } from "../utils/layout";
 
 import { STATS_URL, IS_STATIC } from "../utils/api";
 const REFRESH_MS = 5000;
@@ -19,18 +20,23 @@ const C = {
   moss: 0x455a4b,
 };
 
-const W = 1500;
-const MARGIN = 55;
+const W = LAYOUT.width;
+const MARGIN = LAYOUT.margin;
 const INNER_W = W - MARGIN * 2;
+const PORTRAIT = LAYOUT.portrait;
 
-const BOARD_Y = 215;
-const BOARD_H = 300;
-const BOARD_ROW_H = 46;
+// Portrait stacks the cards two per row, so the panels below start lower
+const SUMMARY_Y = PORTRAIT ? 150 : 120;
+const SUMMARY_H = PORTRAIT ? 190 : 78;
+
+const BOARD_Y = SUMMARY_Y + SUMMARY_H + 20;
+const BOARD_H = PORTRAIT ? 420 : 300;
+const BOARD_ROW_H = PORTRAIT ? 64 : 46;
 const BOARD_ROWS = Math.floor((BOARD_H - 70) / BOARD_ROW_H);
 
-const HISTORY_Y = 535;
-const HISTORY_H = 425;
-const HISTORY_ROW_H = 34;
+const HISTORY_Y = BOARD_Y + BOARD_H + 20;
+const HISTORY_H = PORTRAIT ? LAYOUT.height - HISTORY_Y - 30 : 425;
+const HISTORY_ROW_H = PORTRAIT ? 46 : 34;
 const HISTORY_ROWS = Math.floor((HISTORY_H - 76) / HISTORY_ROW_H);
 
 interface MatchFighter {
@@ -85,7 +91,9 @@ function text(
   color: string,
   extra: Phaser.Types.GameObjects.Text.TextStyle = {},
 ) {
-  return scene.add.text(x, y, value, { fontSize: `${size}px`, color, fontFamily: "monospace", ...extra });
+  // Portrait gets larger text throughout; the title is already sized per layout
+  const px = Math.round(size * (PORTRAIT && size < 26 ? 1.35 : 1));
+  return scene.add.text(x, y, value, { fontSize: `${px}px`, color, fontFamily: "monospace", ...extra });
 }
 
 export class MenuScene extends Phaser.Scene {
@@ -105,11 +113,11 @@ export class MenuScene extends Phaser.Scene {
     this.stats = null;
     this.scroll = 0;
 
-    text(this, MARGIN, 28, "TINY AI ARENA", 36, C.gold, { fontStyle: "bold", stroke: C.navy, strokeThickness: 4 });
-    text(this, MARGIN, 72, "LLM battle royale — leaderboard & match history", 13, C.text);
-    this.statusText = text(this, MARGIN, 92, "Loading…", 12, C.muted);
+    text(this, MARGIN, 28, "TINY AI ARENA", PORTRAIT ? 30 : 36, C.gold, { fontStyle: "bold", stroke: C.navy, strokeThickness: 4 });
+    text(this, MARGIN, PORTRAIT ? 66 : 72, "leaderboard & match history", 13, C.text);
+    this.statusText = text(this, MARGIN, PORTRAIT ? 86 : 92, "Loading…", 12, C.muted);
 
-    this.playButton = text(this, W - MARGIN, 44, IS_STATIC ? "REPLAYS" : "NEW GAME", 18, C.navy, {
+    this.playButton = text(this, W - MARGIN, PORTRAIT ? 110 : 44, IS_STATIC ? "REPLAYS" : "NEW GAME", 18, C.navy, {
       fontStyle: "bold",
       backgroundColor: C.grass,
       padding: { x: 16, y: 8 },
@@ -118,13 +126,11 @@ export class MenuScene extends Phaser.Scene {
       .setInteractive({ useHandCursor: true })
       .on("pointerdown", () => {
         if (IS_STATIC) return;
-        // Only one game can run at a time, so while one is live this button watches it instead
-        const live = this.stats?.matches.find((m) => m.status === "running");
-        this.scene.start("Arena", live ? { gameId: live.id } : { newGame: true });
+        this.scene.start("Arena", { newGame: true });
       });
     if (IS_STATIC) this.playButton.disableInteractive().setBackgroundColor(C.teal as unknown as string);
 
-    addMuteButton(this, W - MARGIN, 90, 1);
+    addMuteButton(this, PORTRAIT ? MARGIN : W - MARGIN, PORTRAIT ? 112 : 90, PORTRAIT ? 0 : 1);
 
     this.summaryLayer = this.add.container();
     this.boardLayer = this.add.container();
@@ -159,8 +165,8 @@ export class MenuScene extends Phaser.Scene {
       this.scroll = Math.min(this.scroll, Math.max(0, stats.matches.length - HISTORY_ROWS));
       this.statusText.setText(`Updated ${new Date().toLocaleTimeString()}`).setColor(C.muted);
       if (!IS_STATIC) {
-        const live = stats.matches.find((m) => m.status === "running");
-        this.playButton.setText(live ? `WATCH LIVE: ${live.id}` : "NEW GAME").setBackgroundColor(live ? C.gold : C.grass);
+        const live = stats.matches.filter((m) => m.status === "running").length;
+        this.statusText.setText(live ? `Updated ${new Date().toLocaleTimeString()} · ${live} running` : `Updated ${new Date().toLocaleTimeString()}`);
       }
       this.renderSummary();
       this.renderBoard();
@@ -189,13 +195,17 @@ export class MenuScene extends Phaser.Scene {
       ["AVG ROUNDS", t.avgRounds.toFixed(1), C.parchment],
     ];
     const gap = 16;
-    const w = (INNER_W - gap * (cards.length - 1)) / cards.length;
+    // One row of five in landscape; portrait wraps to three per row
+    const perRow = PORTRAIT ? 3 : cards.length;
+    const w = (INNER_W - gap * (perRow - 1)) / perRow;
+    const h = PORTRAIT ? 86 : 78;
     cards.forEach(([label, value, color], i) => {
-      const x = MARGIN + i * (w + gap);
+      const x = MARGIN + (i % perRow) * (w + gap);
+      const y = SUMMARY_Y + Math.floor(i / perRow) * (h + gap);
       layer.add([
-        this.add.rectangle(x, 120, w, 78, C.panelDark, 0.95).setOrigin(0).setStrokeStyle(2, C.teal),
-        text(this, x + 16, 132, value, 30, color, { fontStyle: "bold" }),
-        text(this, x + 16, 172, label, 11, C.muted),
+        this.add.rectangle(x, y, w, h, C.panelDark, 0.95).setOrigin(0).setStrokeStyle(2, C.teal),
+        text(this, x + 14, y + 12, value, PORTRAIT ? 26 : 30, color, { fontStyle: "bold" }),
+        text(this, x + 14, y + (PORTRAIT ? 56 : 52), label, 11, C.muted),
       ]);
     });
   }
@@ -205,49 +215,71 @@ export class MenuScene extends Phaser.Scene {
     layer.removeAll(true);
     const models = this.stats!.models;
     const x0 = MARGIN + 16;
-    const cols = { rank: x0, model: x0 + 40, elo: 500, played: 590, wins: 670, rate: 750, kills: 970, dealt: 1055, taken: 1165, place: 1280 };
     const headY = BOARD_Y + 42;
 
-    const head: [keyof typeof cols, string][] = [
-      ["rank", "#"], ["model", "MODEL"], ["elo", "ELO"], ["played", "PLAYED"], ["wins", "WINS"], ["rate", "WIN RATE"],
-      ["kills", "KILLS"], ["dealt", "DMG DEALT"], ["taken", "DMG TAKEN"], ["place", "AVG PLACE"],
-    ];
-    for (const [k, label] of head) layer.add(text(this, cols[k], headY, label, 11, C.muted, { fontStyle: "bold" }));
+    if (!PORTRAIT) {
+      const cols = { rank: x0, model: x0 + 40, elo: 500, played: 590, wins: 670, rate: 750, kills: 970, dealt: 1055, taken: 1165, place: 1280 };
+      const head: [keyof typeof cols, string][] = [
+        ["rank", "#"], ["model", "MODEL"], ["elo", "ELO"], ["played", "PLAYED"], ["wins", "WINS"], ["rate", "WIN RATE"],
+        ["kills", "KILLS"], ["dealt", "DMG DEALT"], ["taken", "DMG TAKEN"], ["place", "AVG PLACE"],
+      ];
+      for (const [k, label] of head) layer.add(text(this, cols[k], headY, label, 11, C.muted, { fontStyle: "bold" }));
 
-    if (models.length === 0) {
-      layer.add(text(this, x0, headY + 40, "No finished matches yet — click NEW GAME", 14, C.text));
-      return;
+      if (models.length === 0) {
+        layer.add(text(this, x0, headY + 40, "No finished matches yet — click NEW GAME", 14, C.text));
+        return;
+      }
+
+      models.slice(0, BOARD_ROWS).forEach((m, i) => {
+        const y = headY + 22 + i * BOARD_ROW_H;
+        const cy = y + BOARD_ROW_H / 2;
+        if (i % 2 === 0) layer.add(this.add.rectangle(MARGIN + 2, y, INNER_W - 4, BOARD_ROW_H, C.panelDark, 0.8).setOrigin(0));
+
+        const warrior = this.warriorIcon(cols.model + 18, cy - 4, m.fighterId, i, 0.32);
+        const barW = 120;
+        layer.add([
+          text(this, cols.rank, cy, `${i + 1}`, 16, i === 0 ? C.gold : C.text, { fontStyle: "bold" }).setOrigin(0, 0.5),
+          warrior,
+          text(this, cols.model + 44, cy, shortModel(m.model), 14, hex(m.color), { fontStyle: "bold" }).setOrigin(0, 0.5),
+          text(this, cols.elo, cy, `${m.elo}`, 15, i === 0 ? C.gold : C.parchment, { fontStyle: "bold" }).setOrigin(0, 0.5),
+          text(this, cols.played, cy, `${m.played}`, 14, C.text).setOrigin(0, 0.5),
+          text(this, cols.wins, cy, `${m.wins}`, 14, C.parchment, { fontStyle: "bold" }).setOrigin(0, 0.5),
+          this.add.rectangle(cols.rate, cy, barW, 10, C.moss).setOrigin(0, 0.5).setStrokeStyle(1, 0x161c2e),
+          this.add.rectangle(cols.rate, cy, Math.max(0, barW * m.winRate), 10, 0x85b156).setOrigin(0, 0.5),
+          text(this, cols.rate + barW + 10, cy, `${Math.round(m.winRate * 100)}%`, 14, C.parchment).setOrigin(0, 0.5),
+          text(this, cols.kills, cy, `${m.kills}`, 14, C.text).setOrigin(0, 0.5),
+          text(this, cols.dealt, cy, `${m.damageDealt}`, 14, C.text).setOrigin(0, 0.5),
+          text(this, cols.taken, cy, `${m.damageTaken}`, 14, C.text).setOrigin(0, 0.5),
+          text(this, cols.place, cy, m.avgPlacement.toFixed(2), 14, C.text).setOrigin(0, 0.5),
+        ]);
+      });
+    } else {
+      // Too narrow for ten columns: model and Elo on top, the rest underneath
+      if (models.length === 0) {
+        layer.add(text(this, x0, headY, "No finished matches yet", 14, C.text));
+        return;
+      }
+      models.slice(0, BOARD_ROWS).forEach((m, i) => {
+        const y = headY + i * BOARD_ROW_H;
+        if (i % 2 === 0) layer.add(this.add.rectangle(MARGIN + 2, y - 6, INNER_W - 4, BOARD_ROW_H, C.panelDark, 0.8).setOrigin(0));
+        layer.add([
+          text(this, x0, y + 6, `${i + 1}`, 16, i === 0 ? C.gold : C.text, { fontStyle: "bold" }).setOrigin(0, 0.5),
+          this.warriorIcon(x0 + 40, y + 2, m.fighterId, i, 0.3),
+          text(this, x0 + 64, y + 6, shortModel(m.model), 15, hex(m.color), { fontStyle: "bold" }).setOrigin(0, 0.5),
+          text(this, MARGIN + INNER_W - 16, y + 6, `${m.elo}`, 17, i === 0 ? C.gold : C.parchment, { fontStyle: "bold" }).setOrigin(1, 0.5),
+          text(this, x0 + 64, y + 28, `${m.played} played · ${m.wins} wins · ${Math.round(m.winRate * 100)}% · ${m.kills} kills · place ${m.avgPlacement.toFixed(2)}`, 12, C.muted).setOrigin(0, 0.5),
+        ]);
+      });
     }
-
-    models.slice(0, BOARD_ROWS).forEach((m, i) => {
-      const y = headY + 22 + i * BOARD_ROW_H;
-      const cy = y + BOARD_ROW_H / 2;
-      if (i % 2 === 0) layer.add(this.add.rectangle(MARGIN + 2, y, INNER_W - 4, BOARD_ROW_H, C.panelDark, 0.8).setOrigin(0));
-
-      const warrior = this.add.sprite(cols.model + 18, cy - 4, `warrior_idle_${warriorColor(m.fighterId)}`, 0).setScale(0.32);
-      warrior.play({ key: `warrior_idle_${warriorColor(m.fighterId)}`, startFrame: i % 8 });
-
-      const barW = 120;
-      layer.add([
-        text(this, cols.rank, cy, `${i + 1}`, 16, i === 0 ? C.gold : C.text, { fontStyle: "bold" }).setOrigin(0, 0.5),
-        warrior,
-        text(this, cols.model + 44, cy, shortModel(m.model), 14, hex(m.color), { fontStyle: "bold" }).setOrigin(0, 0.5),
-        text(this, cols.elo, cy, `${m.elo}`, 15, i === 0 ? C.gold : C.parchment, { fontStyle: "bold" }).setOrigin(0, 0.5),
-        text(this, cols.played, cy, `${m.played}`, 14, C.text).setOrigin(0, 0.5),
-        text(this, cols.wins, cy, `${m.wins}`, 14, C.parchment, { fontStyle: "bold" }).setOrigin(0, 0.5),
-        this.add.rectangle(cols.rate, cy, barW, 10, C.moss).setOrigin(0, 0.5).setStrokeStyle(1, 0x161c2e),
-        this.add.rectangle(cols.rate, cy, Math.max(0, barW * m.winRate), 10, 0x85b156).setOrigin(0, 0.5),
-        text(this, cols.rate + barW + 10, cy, `${Math.round(m.winRate * 100)}%`, 14, C.parchment).setOrigin(0, 0.5),
-        text(this, cols.kills, cy, `${m.kills}`, 14, C.text).setOrigin(0, 0.5),
-        text(this, cols.dealt, cy, `${m.damageDealt}`, 14, C.text).setOrigin(0, 0.5),
-        text(this, cols.taken, cy, `${m.damageTaken}`, 14, C.text).setOrigin(0, 0.5),
-        text(this, cols.place, cy, m.avgPlacement.toFixed(2), 14, C.text).setOrigin(0, 0.5),
-      ]);
-    });
 
     if (models.length > BOARD_ROWS) {
       layer.add(text(this, MARGIN + INNER_W - 16, BOARD_Y + BOARD_H - 18, `+${models.length - BOARD_ROWS} more models`, 11, C.muted).setOrigin(1, 0));
     }
+  }
+
+  private warriorIcon(x: number, y: number, fighterId: string, seed: number, scale: number) {
+    const key = `warrior_idle_${warriorColor(fighterId)}`;
+    return this.add.sprite(x, y, key, 0).setScale(scale).play({ key, startFrame: seed % 8 });
   }
 
   private renderHistory() {
@@ -262,7 +294,7 @@ export class MenuScene extends Phaser.Scene {
       ["id", "MATCH"], ["date", "DATE"], ["status", "STATUS"], ["winner", "WINNER"],
       ["rounds", "ROUNDS"], ["turns", "ACTIONS"], ["kills", "KILLS  (by fighter)"],
     ];
-    for (const [k, label] of head) layer.add(text(this, cols[k], headY, label, 11, C.muted, { fontStyle: "bold" }));
+    if (!PORTRAIT) for (const [k, label] of head) layer.add(text(this, cols[k], headY, label, 11, C.muted, { fontStyle: "bold" }));
 
     if (matches.length === 0) {
       layer.add(text(this, x0, headY + 40, "No matches yet — click NEW GAME", 14, C.text));
@@ -288,6 +320,19 @@ export class MenuScene extends Phaser.Scene {
         month: "short", day: "numeric", hour: "2-digit", minute: "2-digit",
       });
       const winnerLabel = winner ? winner.name : m.status === "running" ? "in progress…" : "—";
+
+      if (PORTRAIT) {
+        // Two lines per match: id and status on top, winner and counts underneath
+        layer.add([
+          row,
+          text(this, cols.id, cy - 10, m.id, 14, C.parchment, { fontStyle: "bold" }).setOrigin(0, 0.5),
+          text(this, cols.id + 90, cy - 10, m.status.toUpperCase(), 11, statusColor[m.status], { fontStyle: "bold" }).setOrigin(0, 0.5),
+          text(this, MARGIN + INNER_W - 16, cy - 10, date, 12, C.muted).setOrigin(1, 0.5),
+          text(this, cols.id, cy + 10, winnerLabel, 13, winner ? hex(winner.color) : C.muted, { fontStyle: winner ? "bold" : "normal" }).setOrigin(0, 0.5),
+          text(this, MARGIN + INNER_W - 16, cy + 10, `${m.rounds} rounds · ${m.turns} actions`, 12, C.text).setOrigin(1, 0.5),
+        ]);
+        return;
+      }
 
       layer.add([
         row,

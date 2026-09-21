@@ -7,17 +7,21 @@ import { addMuteButton } from "../utils/sound";
 
 import { API_BASE, IS_STATIC, framesUrl, gameUrl } from "../utils/api";
 
-const PANEL_X = 858;
-const PANEL_WIDTH = 620;
+import { LAYOUT } from "../utils/layout";
 
-const LOG_Y = 10;
-const LOG_HEIGHT = 470;
-const LOG_LINE_HEIGHT = 16;
+const PANEL_X = LAYOUT.panelX;
+const PANEL_WIDTH = LAYOUT.panelWidth;
+
+const LOG_Y = LAYOUT.logY;
+const LOG_HEIGHT = LAYOUT.logHeight;
+// Everything reads small on a phone, so text and line spacing scale up together
+const TEXT = (px: number) => `${Math.round(px * (LAYOUT.portrait ? 1.45 : 1))}px`;
+const LOG_LINE_HEIGHT = LAYOUT.portrait ? 23 : 16;
 const VISIBLE_LOG_LINES = Math.floor((LOG_HEIGHT - 40) / LOG_LINE_HEIGHT);
 
-const CHAT_Y = 490;
-const CHAT_HEIGHT = 470;
-const CHAT_LINE_HEIGHT = 18;
+const CHAT_Y = LAYOUT.chatY;
+const CHAT_HEIGHT = LAYOUT.chatHeight;
+const CHAT_LINE_HEIGHT = LAYOUT.portrait ? 26 : 18;
 const VISIBLE_CHAT_LINES = Math.floor((CHAT_HEIGHT - 40) / CHAT_LINE_HEIGHT);
 
 const POLL_INTERVAL = 1500;
@@ -37,12 +41,12 @@ export class ArenaScene extends Phaser.Scene {
 
   private frameCounterText!: Phaser.GameObjects.Text;
   private roundText!: Phaser.GameObjects.Text;
-  private detailText!: Phaser.GameObjects.Text;
   private statusText!: Phaser.GameObjects.Text;
 
   private logTexts: Phaser.GameObjects.Text[] = [];
   private chatTexts: Phaser.GameObjects.Text[] = [];
   private btnAuto!: Phaser.GameObjects.Text;
+  private hintY = 0;
 
   constructor() {
     super("Arena");
@@ -75,21 +79,21 @@ export class ArenaScene extends Phaser.Scene {
 
   private createUI() {
     // --- FRAME COUNTER (top-left, above arena) ---
-    this.frameCounterText = this.add.text(55, 10, "", {
-      fontSize: "13px",
+    this.frameCounterText = this.add.text(LAYOUT.headerX, LAYOUT.headerY, "", {
+      fontSize: TEXT(13),
       color: "#e8ce91",
       fontFamily: "monospace",
       fontStyle: "bold",
     });
 
-    this.roundText = this.add.text(55, 28, "", {
-      fontSize: "12px",
+    this.roundText = this.add.text(LAYOUT.headerX, LAYOUT.headerY + 18, "", {
+      fontSize: TEXT(12),
       color: "#d8cfa8",
       fontFamily: "monospace",
     });
 
-    this.statusText = this.add.text(55, 46, "", {
-      fontSize: "12px",
+    this.statusText = this.add.text(LAYOUT.headerX, LAYOUT.headerY + 36, "", {
+      fontSize: TEXT(12),
       color: "#85b156",
       fontFamily: "monospace",
     });
@@ -100,7 +104,7 @@ export class ArenaScene extends Phaser.Scene {
       .setStrokeStyle(2, 0x315a6d);
 
     this.add.text(PANEL_X + 10, LOG_Y + 8, "GAME LOG", {
-      fontSize: "13px",
+      fontSize: TEXT(13),
       color: "#e8ce91",
       fontFamily: "monospace",
       fontStyle: "bold",
@@ -109,7 +113,7 @@ export class ArenaScene extends Phaser.Scene {
     for (let i = 0; i < VISIBLE_LOG_LINES; i++) {
       this.logTexts.push(
         this.add.text(PANEL_X + 10, LOG_Y + 30 + i * LOG_LINE_HEIGHT, "", {
-          fontSize: "11px",
+          fontSize: TEXT(11),
           color: "#d8cfa8",
           fontFamily: "monospace",
           wordWrap: { width: PANEL_WIDTH - 20 },
@@ -123,7 +127,7 @@ export class ArenaScene extends Phaser.Scene {
       .setStrokeStyle(2, 0x315a6d);
 
     this.add.text(PANEL_X + 10, CHAT_Y + 8, "GLOBAL CHAT", {
-      fontSize: "13px",
+      fontSize: TEXT(13),
       color: "#93ba4f",
       fontFamily: "monospace",
       fontStyle: "bold",
@@ -132,7 +136,7 @@ export class ArenaScene extends Phaser.Scene {
     for (let i = 0; i < VISIBLE_CHAT_LINES; i++) {
       this.chatTexts.push(
         this.add.text(PANEL_X + 10, CHAT_Y + 30 + i * CHAT_LINE_HEIGHT, "", {
-          fontSize: "11px",
+          fontSize: TEXT(11),
           color: "#d8cfa8",
           fontFamily: "monospace",
           wordWrap: { width: PANEL_WIDTH - 20 },
@@ -140,61 +144,53 @@ export class ArenaScene extends Phaser.Scene {
       );
     }
 
-    // --- DETAIL PANE (below arena) ---
-    this.detailText = this.add.text(55, 845, "", {
-      fontSize: "11px",
-      color: "#d8cfa8",
-      fontFamily: "monospace",
-      wordWrap: { width: 768 },
-    });
-
     // --- CONTROLS ---
-    const btnY = 930;
+    const btnY = LAYOUT.buttonsY;
+    // Bigger tap targets on phones, where there is no mouse and no keyboard shortcuts
     const btnStyle = {
-      fontSize: "16px",
+      fontSize: LAYOUT.portrait ? "22px" : "16px",
       color: "#161c2e",
       fontFamily: "monospace",
       fontStyle: "bold",
       backgroundColor: "#e8ce91",
-      padding: { x: 12, y: 4 },
+      padding: LAYOUT.portrait ? { x: 18, y: 14 } : { x: 12, y: 4 },
     };
     const btnStyleAlt = { ...btnStyle, backgroundColor: "#315a6d", color: "#d8cfa8" };
 
-    this.add.text(55, btnY, "|<", btnStyleAlt)
-      .setInteractive({ useHandCursor: true })
-      .on("pointerdown", () => this.goToFrame(0));
+    // Laid out in a row in landscape; portrait wraps them onto a second line
+    const buttons: [string, Phaser.Types.GameObjects.Text.TextStyle, () => void][] = [
+      ["|<", btnStyleAlt, () => this.goToFrame(0)],
+      ["< PREV", btnStyle, () => this.stepBackward()],
+      ["NEXT >", btnStyle, () => this.stepForward()],
+      [">|", btnStyleAlt, () => this.goToFrame(this.frames.length - 1)],
+      ["AUTO PLAY", { ...btnStyleAlt, backgroundColor: "#e76161", color: "#161c2e" }, () => this.toggleAutoPlay()],
+      ...(IS_STATIC ? [] : [["NEW GAME", { ...btnStyleAlt, backgroundColor: "#85b156", color: "#161c2e" }, () => this.startNewGame()] as [string, Phaser.Types.GameObjects.Text.TextStyle, () => void]]),
+      ["MENU", btnStyleAlt, () => this.scene.start("Menu")],
+    ];
 
-    this.add.text(115, btnY, "< PREV", btnStyle)
-      .setInteractive({ useHandCursor: true })
-      .on("pointerdown", () => this.stepBackward());
-
-    this.add.text(225, btnY, "NEXT >", btnStyle)
-      .setInteractive({ useHandCursor: true })
-      .on("pointerdown", () => this.stepForward());
-
-    this.add.text(335, btnY, ">|", btnStyleAlt)
-      .setInteractive({ useHandCursor: true })
-      .on("pointerdown", () => this.goToFrame(this.frames.length - 1));
-
-    this.btnAuto = this.add.text(400, btnY, "AUTO PLAY", { ...btnStyleAlt, backgroundColor: "#e76161", color: "#161c2e" })
-      .setInteractive({ useHandCursor: true })
-      .on("pointerdown", () => this.toggleAutoPlay());
-
-    if (!IS_STATIC) {
-      this.add.text(550, btnY, "NEW GAME", { ...btnStyleAlt, backgroundColor: "#85b156", color: "#161c2e" })
-        .setInteractive({ useHandCursor: true })
-        .on("pointerdown", () => this.startNewGame());
+    let x = LAYOUT.margin;
+    let y = btnY;
+    // Buttons sit under the arena, so they wrap against its width, not the side panel's
+    const rowEnd = ARENA_OFFSET_X + DISPLAY_COLS * CELL_SIZE;
+    for (const [label, style, onClick] of buttons) {
+      const button = this.add.text(x, y, label, style).setInteractive({ useHandCursor: true }).on("pointerdown", onClick);
+      if (label === "AUTO PLAY") this.btnAuto = button;
+      x += button.width + 12;
+      if (x > rowEnd - 90) {
+        x = LAYOUT.margin;
+        y += button.height + 10;
+      }
     }
+    this.hintY = y + 46;
 
-    this.add.text(700, btnY, "MENU", { ...btnStyleAlt })
-      .setInteractive({ useHandCursor: true })
-      .on("pointerdown", () => this.scene.start("Menu"));
-
-    this.add.text(55, btnY + 30, "Arrow keys: Left/Right | Home/End | Space: auto | Esc: menu | M: mute", {
-      fontSize: "10px",
-      color: "#6f8a86",
-      fontFamily: "monospace",
-    });
+    // Keyboard hints are pointless on a touch screen
+    if (!LAYOUT.portrait) {
+      this.add.text(LAYOUT.margin, this.hintY, "Arrow keys: Left/Right | Home/End | Space: auto | Esc: menu | M: mute", {
+        fontSize: "10px",
+        color: "#6f8a86",
+        fontFamily: "monospace",
+      });
+    }
   }
 
   private setupInput() {
@@ -204,7 +200,7 @@ export class ArenaScene extends Phaser.Scene {
     this.input.keyboard!.on("keydown-END", () => this.goToFrame(this.frames.length - 1));
     this.input.keyboard!.on("keydown-SPACE", () => this.toggleAutoPlay());
     this.input.keyboard!.on("keydown-ESC", () => this.scene.start("Menu"));
-    addMuteButton(this, ARENA_OFFSET_X + DISPLAY_COLS * CELL_SIZE, 12, 1);
+    addMuteButton(this, ARENA_OFFSET_X + DISPLAY_COLS * CELL_SIZE, LAYOUT.headerY + 2, 1);
   }
 
   // ---- SERVER COMMUNICATION ----
@@ -253,7 +249,7 @@ export class ArenaScene extends Phaser.Scene {
       if (resp.status === 409) {
         await this.loadGame(data.runningGameId);
         if (session !== this.session) return;
-        this.statusText.setText(`${data.runningGameId} is still running - only one game at a time`);
+        this.statusText.setText(data.error ?? "Too many games running");
         this.statusText.setColor("#e8ce91");
         return;
       }
@@ -467,7 +463,6 @@ export class ArenaScene extends Phaser.Scene {
     this.roundText.setText(
       frame.round > 0 ? `Round ${frame.round}` : frame.round === 0 ? "Pre-game" : "Game Over",
     );
-    this.detailText.setText(frame.logEntry.details);
 
     this.updateLog();
     this.updateChat();

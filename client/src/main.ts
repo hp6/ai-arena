@@ -2,11 +2,12 @@ import Phaser from "phaser";
 import { BootScene } from "./scenes/BootScene";
 import { ArenaScene } from "./scenes/ArenaScene";
 import { MenuScene } from "./scenes/MenuScene";
+import { LAYOUT } from "./utils/layout";
 
 const config: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO,
-  width: 1500,
-  height: 980,
+  width: LAYOUT.width,
+  height: LAYOUT.height,
   parent: "game-container",
   backgroundColor: "#161c2e",
   scale: {

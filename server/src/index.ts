@@ -4,7 +4,7 @@ import dotenv from "dotenv";
 import express from "express";
 import cors from "cors";
 import gameRouter from "./routes/game.js";
-import { initDb } from "./db/database.js";
+import { initDb, markAbandonedGamesInterrupted } from "./db/database.js";
 import { computeStats } from "./stats.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -12,6 +12,8 @@ dotenv.config();
 dotenv.config({ path: path.resolve(here, "../../.env") });
 
 initDb();
+const abandoned = markAbandonedGamesInterrupted();
+if (abandoned > 0) console.warn(`Marked ${abandoned} game(s) interrupted: they were running when the server last stopped`);
 
 const app = express();
 const PORT = parseInt(process.env.PORT ?? "3001", 10);

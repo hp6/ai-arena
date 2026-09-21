@@ -16,7 +16,6 @@ export const MODEL_POOL: { model: string; provider?: string }[] = [
   { model: "openai/gpt-5.6-luna-pro" },
   // Anthropic and Alibaba are the only providers of these two that support structured outputs
   { model: "anthropic/claude-fable-5.1", provider: "Anthropic" },
-  { model: "qwen/qwen3.8-max-0902", provider: "Alibaba" },
   // "SpaceXAI" is the model's brand; xAI is the provider serving it, and the cheapest one
   { model: "x-ai/grok-4.6", provider: "xAI" },
   { model: "moonshotai/kimi-k2.6", provider: "Baidu" },

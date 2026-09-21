@@ -28,9 +28,12 @@ export function isGameRunning(gameId: string): boolean {
   return runningGames.has(gameId);
 }
 
-export function getRunningGameId(): string | null {
-  return runningGames.values().next().value ?? null;
+export function getRunningGameIds(): string[] {
+  return [...runningGames];
 }
+
+/** Matches run in parallel up to this many; each one is just an async loop waiting on API calls */
+export const MAX_CONCURRENT_GAMES = Math.max(1, parseInt(process.env.MAX_CONCURRENT_GAMES ?? "3", 10) || 3);
 
 export function startGame(agents?: AgentConfig[]): string {
   const state = createGame();
@@ -49,17 +52,13 @@ export function startGame(agents?: AgentConfig[]): string {
     {
       round: 0,
       fighterId: "",
-      description: "Game starts. 4 fighters enter the arena.",
-      details: state.fighters
-        .map((f) => `${f.name}: HP ${f.hp}/${f.maxHp}, spawn (${f.position.x},${f.position.y})`)
-        .join("\n"),
+      description: `Game starts. ${state.fighters.length} fighters enter the arena: ${state.fighters.map((f) => `${f.name} at (${f.position.x},${f.position.y})`).join(", ")}`,
       actionType: "start",
     },
     {
       round: 1,
       fighterId: "",
       description: `--- Round 1 --- Turn order: ${state.turnOrder.map((id) => state.fighters.find((f) => f.id === id)!.name).join(", ")}`,
-      details: `Alive: ${state.fighters.map((f) => `${f.name} (${f.hp} HP)`).join(", ")}`,
       actionType: "round_start",
     },
   ];
@@ -161,8 +160,7 @@ async function runGameLoop(
           {
             round: state.round,
             fighterId: fighter.id,
-            description: `${fighter.name} waits (no valid response: ${reason})`,
-            details: `The model gave no usable response (${reason}), so the turn is skipped. AP ${ap}->0`,
+            description: `${fighter.name} waits — no valid response from the model (${reason}), AP ${ap}->0`,
             actionType: "wait",
           },
           chat,
@@ -233,8 +231,7 @@ function executeOneAction(state: GameState, fighterId: string, action: Action, a
       logEntry: {
         round: state.round,
         fighterId,
-        description: `${fighter.name}: invalid (${action.type}) - ${validation.reason}`,
-        details: `Attempted: ${JSON.stringify(action)}\nReason: ${validation.reason}\nAP ${ap}->${newAp}`,
+        description: `${fighter.name}: invalid ${action.type} ${JSON.stringify(action)} — ${validation.reason}, AP ${ap}->${newAp}`,
         actionType: "wait",
       },
       bonusEntry: null,
@@ -261,16 +258,14 @@ function executeOneAction(state: GameState, fighterId: string, action: Action, a
         logEntry: {
           round: state.round,
           fighterId,
-          description: `${fighter.name} moves (${oldPos.x},${oldPos.y})->(${fighter.position.x},${fighter.position.y})`,
-          details: `From (${oldPos.x},${oldPos.y}) to (${fighter.position.x},${fighter.position.y}), AP ${ap}->${movedAp}`,
+          description: `${fighter.name} moves (${oldPos.x},${oldPos.y})->(${fighter.position.x},${fighter.position.y}), AP ${ap}->${movedAp}`,
           actionType: "move",
         },
         bonusEntry: onGold
           ? {
               round: state.round,
               fighterId,
-              description: `${fighter.name} eats the gold! +${GOLD_BONUS_AP} AP per turn`,
-              details: `Gold at (${fighter.position.x},${fighter.position.y}) consumed. AP this turn ${movedAp}->${newAp}, AP per turn now ${fighter.maxAp}`,
+              description: `${fighter.name} eats the gold at (${fighter.position.x},${fighter.position.y})! +${GOLD_BONUS_AP} AP per turn (now ${fighter.maxAp}), AP this turn ${movedAp}->${newAp}`,
               actionType: "pickup",
             }
           : null,
@@ -308,8 +303,7 @@ function executeOneAction(state: GameState, fighterId: string, action: Action, a
         eliminationEntry = {
           round: state.round,
           fighterId,
-          description: `${target.name} is ELIMINATED! ${fighter.name} +${KILL_BONUS_AP} AP per turn, ${healText}`,
-          details: `${target.name} knocked out by ${fighter.name}. Remaining: ${state.fighters.filter((f) => f.isAlive).length} fighters\nKill reward: AP this turn ${attackAp}->${newAp}, AP per turn now ${fighter.maxAp}, HP ${hpBefore}->${fighter.hp} (heal ${heal} = ${Math.round(KILL_HEAL_RATIO * 100)}% of max ${fighter.maxHp})`,
+          description: `${target.name} is ELIMINATED by ${fighter.name} — reward +${KILL_BONUS_AP} AP per turn (now ${fighter.maxAp}), ${healText} (HP ${hpBefore}->${fighter.hp}); ${state.fighters.filter((f) => f.isAlive).length} fighters left`,
           actionType: "elimination",
         };
 
@@ -328,10 +322,9 @@ function executeOneAction(state: GameState, fighterId: string, action: Action, a
           victoryEntry = {
             round: state.round,
             fighterId: winner?.id ?? "",
-            description: `${winner?.name ?? "Nobody"} WINS!`,
-            details: winner
-              ? `${winner.name} is the last fighter standing with ${winner.hp} HP remaining!`
-              : "Draw!",
+            description: winner
+              ? `${winner.name} WINS — last fighter standing with ${winner.hp} HP`
+              : "Draw — nobody is left standing",
             actionType: "victory",
           };
           chatMessage = {
@@ -347,8 +340,7 @@ function executeOneAction(state: GameState, fighterId: string, action: Action, a
         logEntry: {
           round: state.round,
           fighterId,
-          description: `${fighter.name} attacks ${target.name} for ${result.damage} dmg -> ${target.hp} HP`,
-          details: `Attacker: ${fighter.name} at (${fighter.position.x},${fighter.position.y}), AP ${ap}->${attackAp}\nTarget: ${target.name} at (${target.position.x},${target.position.y}), HP ${result.targetHpBefore}->${result.targetHpAfter}\nDamage: ${result.damage}`,
+          description: `${fighter.name} (${fighter.position.x},${fighter.position.y}) attacks ${target.name} (${target.position.x},${target.position.y}) for ${result.damage} dmg, HP ${result.targetHpBefore}->${result.targetHpAfter}, AP ${ap}->${attackAp}`,
           actionType: "attack",
         },
         bonusEntry: null,
@@ -366,8 +358,7 @@ function executeOneAction(state: GameState, fighterId: string, action: Action, a
         logEntry: {
           round: state.round,
           fighterId,
-          description: `${fighter.name} waits`,
-          details: `AP ${ap}->${newAp}`,
+          description: `${fighter.name} waits, AP ${ap}->${newAp}`,
           actionType: "wait",
         },
         bonusEntry: null,
@@ -385,8 +376,7 @@ function executeOneAction(state: GameState, fighterId: string, action: Action, a
         logEntry: {
           round: state.round,
           fighterId,
-          description: `${fighter.name}: unknown action`,
-          details: `AP ${ap}->${newAp}`,
+          description: `${fighter.name}: unknown action, AP ${ap}->${newAp}`,
           actionType: "wait",
         },
         bonusEntry: null,
@@ -428,8 +418,7 @@ function advanceTurn(
     const entry: TurnLogEntry = {
       round: state.round,
       fighterId: "",
-      description: `--- Round ${state.round} --- Turn order: ${state.turnOrder.map((id) => state.fighters.find((f) => f.id === id)!.name).join(", ")}`,
-      details: `Alive: ${state.fighters
+      description: `--- Round ${state.round} --- Turn order: ${state.turnOrder.map((id) => state.fighters.find((f) => f.id === id)!.name).join(", ")} | Alive: ${state.fighters
         .filter((f) => f.isAlive)
         .map((f) => `${f.name} (${f.hp} HP)`)
         .join(", ")}`,

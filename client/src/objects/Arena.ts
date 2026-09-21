@@ -1,8 +1,10 @@
 import Phaser from "phaser";
 import { GRID_WIDTH, GRID_HEIGHT, CELL_SIZE, DISPLAY_COLS, DISPLAY_ROWS, GAME_OFFSET } from "@ai-arena/shared";
 
-export const ARENA_OFFSET_X = 55;
-export const ARENA_OFFSET_Y = 60;
+import { LAYOUT } from "../utils/layout";
+
+export const ARENA_OFFSET_X = LAYOUT.arenaX;
+export const ARENA_OFFSET_Y = LAYOUT.arenaY;
 
 // Render extra tiles beyond the visible area so edge objects/foam look correct
 const RENDER_PAD = 3;

@@ -35,7 +35,6 @@ export interface TurnLogEntry {
   round: number;
   fighterId: string;
   description: string;
-  details: string;
   actionType: "start" | "move" | "attack" | "wait" | "pickup" | "round_start" | "elimination" | "victory";
 }
 

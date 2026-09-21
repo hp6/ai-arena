@@ -45,7 +45,7 @@ The start screen shows a per-model leaderboard (wins, win rate, kills, damage, a
 | Back to the menu | `Esc` |
 | Mute | `M` |
 
-Only one match runs at a time; a running one updates live.
+Up to 3 matches run at once (`MAX_CONCURRENT_GAMES`); running ones update live.
 
 ## How it works
 
@@ -55,7 +55,7 @@ Every action is saved as a frame, so replays are exact and matches survive a res
 
 | Endpoint | |
 |---|---|
-| `POST /api/games` | Start a match (409 if one is running) |
+| `POST /api/games` | Start a match (409 once `MAX_CONCURRENT_GAMES` are running) |
 | `GET /api/games` | Recent matches |
 | `GET /api/games/:id` | Match metadata |
 | `GET /api/games/:id/frames?after=N` | Frames after `N` |

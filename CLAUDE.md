@@ -31,11 +31,11 @@ Monorepo with npm workspaces: `shared/`, `client/`, `server/`.
 
 `MODEL_POOL` in `server/src/ai/AgentConfig.ts` lists every model that can play; each new game draws 4 of them at random and assigns them to Crimson, Azure, Violet and Amber in that order. Models with a `provider` are pinned to it (the only one serving them with structured output support, or the fastest endpoint).
 
-Currently: `deepseek/deepseek-v4-flash-0731` (Makora), `google/gemini-3.6-flash`, `anthropic/claude-sonnet-5`, `openai/gpt-5.6-luna-pro`, `anthropic/claude-fable-5.1` (Anthropic), `qwen/qwen3.8-max-0902` (Alibaba), `x-ai/grok-4.6` (xAI), `moonshotai/kimi-k2.6` (Baidu).
+Currently: `deepseek/deepseek-v4-flash-0731` (Makora), `google/gemini-3.6-flash`, `anthropic/claude-sonnet-5`, `openai/gpt-5.6-luna-pro`, `anthropic/claude-fable-5.1` (Anthropic), `x-ai/grok-4.6` (xAI), `moonshotai/kimi-k2.6` (Baidu).
 
 ### API Endpoints
 
-- `POST /api/games` — Create new game, start background AI loop, return game metadata. Returns 409 with `runningGameId` if a game is already running (one game at a time)
+- `POST /api/games` — Create new game, start background AI loop, return game metadata. Up to `MAX_CONCURRENT_GAMES` (default 3, env-overridable) run at once; returns 409 with `runningGameIds` when that limit is reached
 - `GET /api/games` — List recent games (id, status, fighters, timestamps)
 - `GET /api/games/:id` — Get game metadata (fighters, arena, status, winner)
 - `GET /api/games/:id/frames?after=N` — Poll for frames after index N (returns new frames + game status)

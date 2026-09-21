@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { startGame, getRunningGameId } from "../game/GameRunner.js";
+import { startGame, getRunningGameIds, MAX_CONCURRENT_GAMES } from "../game/GameRunner.js";
 import { type AgentConfig, createDefaultConfigs, PREFERRED_PROVIDERS } from "../ai/AgentConfig.js";
 import { getGame, getFramesAfter, listGames, listAiCalls } from "../db/database.js";
 
@@ -7,10 +7,14 @@ const router = Router();
 
 // Create a new game and start the AI loop in the background
 router.post("/", (req, res) => {
-  // One match at a time; the id is registered as running before startGame returns, so this check can't race
-  const runningGameId = getRunningGameId();
-  if (runningGameId) {
-    res.status(409).json({ error: "A game is already running", runningGameId });
+  // Ids are registered as running before startGame returns, so this check can't race
+  const running = getRunningGameIds();
+  if (running.length >= MAX_CONCURRENT_GAMES) {
+    res.status(409).json({
+      error: `Already running ${running.length} games (limit ${MAX_CONCURRENT_GAMES})`,
+      runningGameIds: running,
+      runningGameId: running[0],
+    });
     return;
   }
 

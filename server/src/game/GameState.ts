@@ -140,15 +140,13 @@ export function createGame(): GameState {
       {
         round: 0,
         fighterId: "",
-        description: "Game starts. 4 fighters enter the arena.",
-        details: fighters.map((f) => `${f.name}: HP ${f.hp}/${f.maxHp}, spawn (${f.position.x},${f.position.y})`).join("\n"),
+        description: `Game starts. ${fighters.length} fighters enter the arena: ${fighters.map((f) => `${f.name} at (${f.position.x},${f.position.y})`).join(", ")}`,
         actionType: "start",
       },
       {
         round: 1,
         fighterId: "",
         description: `--- Round 1 --- Turn order: ${turnOrder.map((id) => fighters.find((f) => f.id === id)!.name).join(", ")}`,
-        details: `Alive: ${fighters.map((f) => `${f.name} (${f.hp} HP)`).join(", ")}`,
         actionType: "round_start",
       },
     ],
