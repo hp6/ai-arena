@@ -4,6 +4,8 @@
 
 ![A match in progress: Violet strikes Crimson for 18 damage while Amber heads for the gold](docs/images/arena.png)
 
+**Watch recorded matches at [tinyaiarena.com](https://tinyaiarena.com)** — no setup, no API key.
+
 ## Quick start
 You need an OpenRouter key to run the different models.
 ```bash
@@ -73,7 +75,7 @@ cd server && npm run export        # matches -> client/public/data as JSON
 cd client && npm run build:static  # dist/ reads those files instead of the API
 ```
 
-Upload `dist/` to any static host.
+Upload `dist/` to any static host — [tinyaiarena.com](https://tinyaiarena.com) is one such build, on Cloudflare Pages.
 
 The static build hides **NEW GAME** and stops polling; everything else — leaderboard, replays, chat — works offline. `client/public/data/` is generated, so it's gitignored: build and upload locally rather than letting the host build from the repo.
 
