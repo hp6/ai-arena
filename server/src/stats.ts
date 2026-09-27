@@ -5,8 +5,16 @@ const START_ELO = 1000;
 const K_FACTOR = 32;
 
 /**
- * Each match is scored as a mini round-robin: every pair of fighters is a head-to-head
- * decided by finishing place, and the K factor is split across those pairings.
+ * Only winning a match earns rating. The winner is scored against each of the other three as a
+ * head-to-head it won, and they are each scored as having lost to it; the losers are not rated
+ * against each other, so finishing second is worth exactly as much as finishing last.
+ *
+ * Placement is deliberately not used. In a four-way free-for-all a fighter that does nothing is
+ * carried up the finishing order by the others knocking each other out, which let a model that
+ * failed most of its turns sit mid-table on placement alone.
+ *
+ * The K factor is split across the three pairings, so the winner's gain is still capped at
+ * K_FACTOR and what it gains is exactly what the losers give up.
  */
 function eloByModel(oldestFirst: MatchSummary[]): Map<string, number> {
   const elo = new Map<string, number>();
@@ -16,17 +24,25 @@ function eloByModel(oldestFirst: MatchSummary[]): Map<string, number> {
     const players = match.fighters.filter((f) => f.placement !== null);
     if (players.length < 2) continue;
 
-    const k = K_FACTOR / (players.length - 1);
-    const deltas = players.map((a) =>
-      players.reduce((sum, b) => {
-        if (a === b) return sum;
-        const expected = 1 / (1 + 10 ** ((rating(b.model) - rating(a.model)) / 400));
-        const score = a.placement! < b.placement! ? 1 : a.placement! === b.placement! ? 0.5 : 0;
-        return sum + k * (score - expected);
-      }, 0),
-    );
+    const winner = players.find((f) => f.id === match.winnerId);
+    // A match with no winner (everyone eliminated, or cut short) rates nobody
+    if (!winner) continue;
+    const losers = players.filter((f) => f !== winner);
+    if (losers.length === 0) continue;
+
+    const k = K_FACTOR / losers.length;
+    let winnerDelta = 0;
+    const loserDeltas = losers.map((loser) => {
+      const expected = 1 / (1 + 10 ** ((rating(loser.model) - rating(winner.model)) / 400));
+      winnerDelta += k * (1 - expected);
+      // The loser's expectation against the winner is the complement of the winner's
+      return k * (0 - (1 - expected));
+    });
+
     // Applied together so everyone in a match is rated against the same starting numbers
-    players.forEach((p, i) => elo.set(p.model, rating(p.model) + deltas[i]));
+    const updates: [string, number][] = [[winner.model, rating(winner.model) + winnerDelta]];
+    losers.forEach((l, i) => updates.push([l.model, rating(l.model) + loserDeltas[i]]));
+    for (const [model, value] of updates) elo.set(model, value);
   }
 
   return elo;

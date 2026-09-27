@@ -88,7 +88,7 @@ cd server && npx tsc --noEmit
 - OpenRouter API key stored in `.env` as `OR_KEY`
 - Dead players cannot chat
 - Fighter names display their model (e.g. "Crimson [deepseek-v4-flash-0731]"), so which model plays which colour changes per game
-- Leaderboard ranks by Elo (start 1000, each match scored as a round-robin by finishing place), which stays fair when models have played different numbers of matches
+- Leaderboard ranks by Elo (start 1000), **awarded for winning only**: the winner is scored as beating each of the other three, they are each scored as losing to it, and the losers are not rated against each other — so second place is worth the same as last. Placement is deliberately not used for rating, because a fighter that does nothing gets carried up the finishing order while the others eliminate each other. Elo stays fair when models have played different numbers of matches; `avgPlacement` is still reported as a separate column
 
 ## Game Constants
 
