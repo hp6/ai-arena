@@ -287,8 +287,13 @@ button.stop {
   min-height: 0;
   flex: 1 1 auto;
   -webkit-overflow-scrolling: touch;
-  /* The page no longer owns scrolling, so keep a dragged feed from pulling the page to refresh */
-  overscroll-behavior: contain;
+  /*
+   * Deliberately NOT `overscroll-behavior: contain`. On a phone these panels cover most of the
+   * screen, and containing the scroll traps the gesture: at the top of the feed a downward drag
+   * moved nothing at all, and at the end of it an upward drag would not carry on to the page, so
+   * the page could only be scrolled from the gutters. Pull-to-refresh is already blocked where it
+   * belongs, by `overscroll-behavior-y: none` on the body.
+   */
 }
 
 .empty {
