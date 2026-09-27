@@ -5,15 +5,72 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Tiny AI Arena</title>
   <link rel="icon" type="image/png" href="/favicon.png" />
-  <style>
-    * { margin: 0; padding: 0; }
-    /* The canvas is scaled to fit, so nothing overflows; leaving scrolling enabled lets a
-       zoomed-in phone pan around. overscroll-behavior keeps a downward drag from pulling to refresh. */
-    body { background: #161c2e; overscroll-behavior: none; }
-  </style>
 </head>
 <body>
-  <div id="game-container"></div>
+  <!-- Shown while Phaser loads the tilesets and 15 warrior spritesheets, then removed. -->
+  <div id="loading">
+    <h1>TINY AI ARENA</h1>
+    <div id="loading-bar"><div></div></div>
+    <p class="status">Loading assets…</p>
+  </div>
+
+  <!-- Built entirely by ui/MenuView.ts, which re-renders it on every stats refresh. -->
+  <main id="menu-screen" class="screen" hidden></main>
+
+  <!--
+    The arena's structure is static so that #board — the one <canvas> parent — is created once
+    at boot and never replaced. ui/ArenaHud.ts fills in the text and wires the buttons.
+  -->
+  <main id="arena-screen" class="screen">
+    <div class="page-head">
+      <div class="titles">
+        <h1 id="arena-frame">Frame 0 / 0</h1>
+        <p class="sub" id="arena-round">Pre-game</p>
+        <p class="status" id="arena-status"></p>
+      </div>
+      <div class="actions">
+        <button id="btn-mute" class="alt" type="button">SOUND: ON</button>
+        <button id="btn-menu" class="alt" type="button">MENU</button>
+      </div>
+    </div>
+
+    <div class="arena-main">
+      <div class="board-col">
+        <div id="board"></div>
+        <div class="controls">
+          <button id="btn-first" class="alt" type="button" title="First frame (Home)">|&lt;</button>
+          <button id="btn-prev" type="button" title="Previous frame (Left arrow)">&lt; PREV</button>
+          <button id="btn-next" type="button" title="Next frame (Right arrow)">NEXT &gt;</button>
+          <button id="btn-last" class="alt" type="button" title="Latest frame (End)">&gt;|</button>
+          <button id="btn-auto" type="button" title="Play through (Space)">AUTO PLAY</button>
+          <button id="btn-new" class="go" type="button">NEW GAME</button>
+        </div>
+        <p class="keys">Arrow keys: Left/Right &middot; Home/End &middot; Space: auto &middot; Esc: menu &middot; M: mute</p>
+      </div>
+
+      <div class="feeds">
+        <section class="panel">
+          <header>
+            <h2>GAME LOG</h2>
+            <span class="hint" id="log-hint"></span>
+          </header>
+          <div class="body" id="log-body">
+            <ol class="feed" id="log-feed"></ol>
+          </div>
+        </section>
+        <section class="panel leaf">
+          <header>
+            <h2>GLOBAL CHAT</h2>
+            <span class="hint" id="chat-hint"></span>
+          </header>
+          <div class="body" id="chat-body">
+            <ol class="feed" id="chat-feed"></ol>
+          </div>
+        </section>
+      </div>
+    </div>
+  </main>
+
   <script type="module" src="/src/main.ts"></script>
 </body>
 </html>

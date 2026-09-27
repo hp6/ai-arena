@@ -11,7 +11,7 @@ Tiny AI Arena is a 2D top-down battle arena where AI agents (powered by differen
 Monorepo with npm workspaces: `shared/`, `client/`, `server/`.
 
 - **shared/** — TypeScript types, game constants, and action definitions used by both client and server. Imported as `@ai-arena/shared`.
-- **client/** — Phaser 4 game (Vite + TypeScript). Renders the arena, fighters, HUD, game log, and chat. Polls server for new frames. Pure spectator — never drives game execution.
+- **client/** — Vite + TypeScript. **Only the 8x8 board is Phaser**; every other pixel — the menu, leaderboard, match history, in-game header, controls, log and chat — is HTML/CSS in `client/src/ui/`. Polls server for new frames. Pure spectator — never drives game execution.
 - **server/** — Express + TypeScript (tsx). Runs game logic in the background, writes frames to SQLite as they happen. Calls OpenRouter for AI decisions (API key server-side).
 
 ### Server Game Engine
@@ -81,6 +81,9 @@ cd server && npx tsc --noEmit
 - AI system prompt includes valid moves, enemy distances, and recent chat for context
 - 90s timeout and 4000 max_tokens per AI call (reasoning tokens count toward the limit), one retry on transient errors; if the model still gives no usable response the fighter waits (turn skipped, reason logged). No bot ever plays for a model
 - Client polls every 1.5s for new frames while game is running
+- **Chrome is DOM, the board is canvas.** The canvas is sized to the board alone and `Phaser.Scale.FIT` fits it into the `#board` CSS box, so the layout reflows with real CSS instead of being a fixed canvas scaled to the window. `ArenaScene` draws the board and emits `frame`/`status`/`log`/`chat`/`autoplay`; `ui/ArenaHud.ts` renders those into the DOM. `ui/AppShell.ts` owns which screen is showing and starts/stops the scene — the menu is not a Phaser scene
+- The log and chat are native scrolling lists updated by delta: the scene sends the entries to append and an index to truncate from, so stepping is O(1) rather than a rebuild from frame 0. Each follows the newest entry only while the reader is already at the bottom
+- `#board` must stay CSS-sized with no border or padding, and `expandParent: false` is required — Phaser measures the box with `getBoundingClientRect` and will otherwise overwrite its width, height and overflow
 - `@ai-arena/shared` is resolved via Vite alias + tsconfig paths (no build step needed)
 - OpenRouter API key stored in `.env` as `OR_KEY`
 - Dead players cannot chat
@@ -90,3 +93,5 @@ cd server && npx tsc --noEmit
 ## Game Constants
 
 All balance values are in `shared/src/constants.ts` — AP costs, damage, grid dimensions (8x8 playable grid), fighter colors, spawn positions, obstacle count (rocks are placed randomly per game), and chat length limit (50 chars). Change them there to rebalance.
+
+How much scenery frames the board is `GRID_PAD` in `client/src/utils/layout.ts`, which is all that file still holds now that CSS does the page layout. The UI palette is `client/src/ui/theme.ts`, mirrored as custom properties in `client/src/ui/styles.css` — change both together.

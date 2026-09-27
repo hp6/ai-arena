@@ -2,10 +2,6 @@ export const GRID_WIDTH = 8;
 export const GRID_HEIGHT = 8;
 export const CELL_SIZE = 64;
 
-export const DISPLAY_COLS = 12;
-export const DISPLAY_ROWS = 12;
-export const GAME_OFFSET = 2;
-
 export const MAX_CHAT_LENGTH = 50;
 
 export const MAX_HP = 100;

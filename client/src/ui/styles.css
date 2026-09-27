@@ -1,0 +1,759 @@
+/*
+ * Tiny AI Arena chrome. Everything except the 8x8 board is here; the board is the one
+ * <canvas>, which Phaser fits into the #board box.
+ *
+ * Palette mirrors src/ui/theme.ts — change both together.
+ */
+
+:root {
+  --navy: #161c2e;
+  --gold: #e8ce91;
+  --parchment: #efe1ab;
+  --text: #d8cfa8;
+  --muted: #8fa39e;
+  --grass: #85b156;
+  --leaf: #93ba4f;
+  --red: #e76161;
+  --teal: #315a6d;
+  --panel: #1e2b38;
+  --panel-dark: #1b2531;
+  --moss: #455a4b;
+
+  --gap: 16px;
+  --pad: 16px;
+  --radius: 2px;
+  --border: 2px solid var(--teal);
+
+  /* One knob for the whole UI's type size; the narrow breakpoint nudges it up. */
+  font-size: 15px;
+
+  /* Native scrollbars, the overscroll gutter and any form control follow the dark palette
+     instead of the light default. Phones overlay their scrollbars so this only shows on
+     desktop — which is exactly where the bright default stripe was showing up. */
+  color-scheme: dark;
+
+  /* Firefox and Chrome 121+. A transparent track lets each panel's own background show
+     through, so one rule suits the navy page and the lighter panels alike. */
+  scrollbar-width: thin;
+  scrollbar-color: var(--teal) transparent;
+}
+
+/* Older WebKit/Blink, which ignores the two standard properties above */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--teal);
+  border-radius: var(--radius);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--moss);
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  background: var(--navy);
+  color: var(--text);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 1rem;
+  line-height: 1.4;
+  /* Keeps a downward drag from pulling to refresh on a phone */
+  overscroll-behavior-y: none;
+  -webkit-text-size-adjust: 100%;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+button {
+  font: inherit;
+  color: var(--navy);
+  background: var(--gold);
+  border: none;
+  border-radius: var(--radius);
+  padding: 0.5em 0.9em;
+  font-weight: bold;
+  cursor: pointer;
+  /* Touch targets stay thumb-sized even when the text is small */
+  min-height: 2.6em;
+  white-space: nowrap;
+}
+
+button:hover:not(:disabled) {
+  filter: brightness(1.12);
+}
+
+button:focus-visible {
+  outline: 2px solid var(--parchment);
+  outline-offset: 2px;
+}
+
+button:disabled {
+  background: var(--teal);
+  color: var(--text);
+  cursor: default;
+}
+
+button.alt {
+  background: var(--teal);
+  color: var(--text);
+}
+
+button.go {
+  background: var(--grass);
+}
+
+button.stop {
+  background: var(--red);
+}
+
+/* ---------------------------------------------------------------- loading */
+
+#loading {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  gap: var(--gap);
+  background: var(--navy);
+  z-index: 10;
+  text-align: center;
+}
+
+#loading h1 {
+  color: var(--gold);
+  font-size: 1.6rem;
+  letter-spacing: 0.06em;
+}
+
+#loading-bar {
+  width: min(280px, 60vw);
+  height: 10px;
+  background: var(--panel-dark);
+  border: var(--border);
+}
+
+#loading-bar > div {
+  height: 100%;
+  width: 0;
+  background: var(--grass);
+  transition: width 0.15s linear;
+}
+
+/* ---------------------------------------------------------------- shell */
+
+.screen {
+  max-width: 1500px;
+  margin: 0 auto;
+  padding: var(--pad);
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+  min-height: 100vh;
+}
+
+.page-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--gap);
+}
+
+.page-head .titles {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.page-head h1 {
+  color: var(--gold);
+  font-size: clamp(1.5rem, 5vw, 2.1rem);
+  letter-spacing: 0.04em;
+  text-shadow: 0 2px 0 var(--navy);
+}
+
+.page-head .sub {
+  color: var(--text);
+  font-size: 0.85rem;
+}
+
+.page-head .actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.status {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.status.ok {
+  color: var(--grass);
+}
+
+.status.warn {
+  color: var(--gold);
+}
+
+.status.error {
+  color: var(--red);
+}
+
+/* ---------------------------------------------------------------- cards */
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--gap);
+}
+
+.card {
+  background: var(--panel-dark);
+  border: var(--border);
+  padding: 0.7em 0.9em;
+}
+
+.card .value {
+  font-size: clamp(1.4rem, 4vw, 1.9rem);
+  font-weight: bold;
+  line-height: 1.1;
+}
+
+.card .label {
+  color: var(--muted);
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+}
+
+/* ---------------------------------------------------------------- panels */
+
+.panel {
+  background: var(--panel);
+  border: var(--border);
+  display: flex;
+  flex-direction: column;
+  /* Lets the scrolling body shrink instead of pushing the panel past its box */
+  min-height: 0;
+  overflow: hidden;
+}
+
+.panel > header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--gap);
+  padding: 0.6em 0.8em;
+  border-bottom: 1px solid var(--teal);
+  flex: 0 0 auto;
+}
+
+.panel > header h2 {
+  font-size: 0.95rem;
+  letter-spacing: 0.06em;
+  color: var(--gold);
+}
+
+.panel.leaf > header h2 {
+  color: var(--leaf);
+}
+
+.panel > header .hint {
+  color: var(--muted);
+  font-size: 0.72rem;
+  text-align: right;
+}
+
+.panel > .body {
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-height: 0;
+  flex: 1 1 auto;
+  -webkit-overflow-scrolling: touch;
+  /* The page no longer owns scrolling, so keep a dragged feed from pulling the page to refresh */
+  overscroll-behavior: contain;
+}
+
+.empty {
+  padding: 1.2em 0.9em;
+  color: var(--text);
+}
+
+/* ---------------------------------------------------------------- tables */
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+thead th.num {
+  text-align: right;
+}
+
+thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--panel);
+  color: var(--muted);
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  text-align: left;
+  padding: 0.5em 0.6em;
+  white-space: nowrap;
+}
+
+tbody td {
+  padding: 0.45em 0.6em;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+tbody tr:nth-child(odd) {
+  background: rgba(27, 37, 49, 0.8);
+}
+
+.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.model {
+  font-weight: bold;
+  /* The only cell allowed to take the slack, so long model names shorten instead of overflowing */
+  max-width: 22ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rank {
+  color: var(--text);
+  font-weight: bold;
+}
+
+tr.top .rank,
+tr.top .elo {
+  color: var(--gold);
+}
+
+.elo {
+  color: var(--parchment);
+  font-weight: bold;
+}
+
+/* Win rate: a mossy trough with a grass fill, as drawn on the canvas before */
+.bar {
+  display: inline-block;
+  vertical-align: middle;
+  width: 110px;
+  height: 10px;
+  background: var(--moss);
+  border: 1px solid var(--navy);
+}
+
+.bar > div {
+  height: 100%;
+  background: var(--grass);
+}
+
+.bar-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* An idle warrior, animated from the same spritesheet the board uses */
+.warrior {
+  display: inline-block;
+  width: 44px;
+  height: 44px;
+  vertical-align: middle;
+  background-repeat: no-repeat;
+  /* Eight frames laid out in a row, so the sheet is eight icon-widths wide */
+  background-size: 352px 44px;
+  image-rendering: pixelated;
+  animation: warrior-idle 1s steps(8) infinite;
+}
+
+@keyframes warrior-idle {
+  from {
+    background-position-x: 0;
+  }
+  to {
+    background-position-x: -352px;
+  }
+}
+
+/* Match history */
+tr.match {
+  cursor: pointer;
+}
+
+tr.match:hover {
+  background: rgba(49, 90, 109, 0.7);
+}
+
+.match-id {
+  color: var(--parchment);
+  font-weight: bold;
+}
+
+.st-finished {
+  color: var(--grass);
+  font-weight: bold;
+}
+
+.st-running {
+  color: var(--gold);
+  font-weight: bold;
+}
+
+.st-interrupted {
+  color: var(--red);
+  font-weight: bold;
+}
+
+.winner {
+  font-weight: bold;
+  max-width: 24ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.winner.none {
+  color: var(--muted);
+  font-weight: normal;
+}
+
+.kills {
+  display: flex;
+  gap: 12px;
+}
+
+.kills > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 1px solid var(--navy);
+  flex: 0 0 auto;
+}
+
+/* The stacked second line, shown only on narrow screens */
+.detail,
+.counts {
+  display: none;
+}
+
+.detail {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+/* ---------------------------------------------------------------- menu */
+
+/*
+ * On a desktop the whole menu fits one screen and each list scrolls inside its own panel, the
+ * way the canvas menu did. Capping the panels instead would let a short list size to its content
+ * and push the page taller, so the page scrolled and the list never did.
+ * Below the breakpoint this is reversed: the page scrolls and the panels size to their content,
+ * which is the right pattern on a phone.
+ */
+@media (min-width: 900px) {
+  #menu-screen {
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  /* The head and the cards keep their size; the two lists take everything left over, in
+     roughly the 300:425 ratio the canvas panels used. */
+  #menu-screen .page-head,
+  #menu-screen .cards {
+    flex: 0 0 auto;
+  }
+
+  #menu-screen .board-panel {
+    flex: 2 1 0;
+  }
+
+  #menu-screen .history-panel {
+    flex: 3 1 0;
+  }
+}
+
+/* ---------------------------------------------------------------- arena */
+
+.arena-main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 620px);
+  gap: var(--gap);
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.board-col {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+  min-width: 0;
+}
+
+/* Phaser fits the canvas into this box; it must have a real computed size. */
+#board {
+  /* Square, so capping the width is also what keeps it inside the viewport's height */
+  width: 100%;
+  max-width: min(100%, 68vh);
+  margin-inline: auto;
+  aspect-ratio: 1 / 1;
+  min-height: 200px;
+  background: var(--navy);
+  /* Not a border: Phaser measures this box with getBoundingClientRect, and a border would make
+     the canvas it sizes overflow by 4px. A shadow frames it without touching the layout box. */
+  box-shadow: 0 0 0 2px var(--teal);
+  overflow: hidden;
+  /* The canvas is the game surface: a tap advances a frame, so no text selection or
+     double-tap zoom on it. Pinch-zoom on the page still works. */
+  touch-action: manipulation;
+  user-select: none;
+}
+
+#board canvas {
+  display: block;
+}
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.keys {
+  color: #6f8a86;
+  font-size: 0.7rem;
+}
+
+.feeds {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+  min-height: 0;
+}
+
+.feeds .panel {
+  flex: 1 1 0;
+  min-height: 120px;
+}
+
+.feed {
+  list-style: none;
+  padding: 0.5em 0.7em;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25em;
+}
+
+.feed li {
+  font-size: 0.8rem;
+  /* Log lines and chat both wrap rather than being clipped mid-word */
+  overflow-wrap: anywhere;
+}
+
+.feed li.round_start {
+  color: var(--gold);
+  font-weight: bold;
+}
+
+.feed li.elimination {
+  color: var(--red);
+  font-weight: bold;
+}
+
+.feed li.victory {
+  color: var(--grass);
+  font-weight: bold;
+}
+
+.feed li.attack {
+  color: var(--red);
+}
+
+.feed li.pickup {
+  color: #f5d76e;
+  font-weight: bold;
+}
+
+.feed li.wait,
+.feed li.start {
+  color: var(--muted);
+}
+
+/* The entry the board is showing right now; last so it wins over every action type */
+.feed li.current {
+  color: var(--parchment);
+  font-weight: bold;
+}
+
+.chat-line .who {
+  font-weight: bold;
+}
+
+/* The newest thing said, as the canvas panel used to bold it */
+.feed li.chat-line:last-child {
+  font-weight: bold;
+}
+
+/* ---------------------------------------------------------------- narrow */
+
+@media (max-width: 899px) {
+  /* The ten-column leaderboard and the seven-column history do not fit; both collapse to
+     two stacked lines per row, which is what the canvas layout did on phones. */
+  .board-table thead,
+  .history-table thead {
+    display: none;
+  }
+
+  .board-table tr.empty-row,
+  .history-table tr.empty-row {
+    display: block;
+  }
+
+  .board-table tr:not(.empty-row),
+  .history-table tr:not(.empty-row) {
+    display: grid;
+    align-items: center;
+    padding: 0.45em 0.6em;
+    gap: 0 8px;
+  }
+
+  .board-table td,
+  .history-table td {
+    padding: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .board-table tr {
+    grid-template-columns: 2.2em auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      "rank icon model elo"
+      "detail detail detail detail";
+  }
+
+  .board-table .rank {
+    grid-area: rank;
+  }
+
+  .board-table .icon {
+    grid-area: icon;
+  }
+
+  .board-table .model {
+    grid-area: model;
+    max-width: none;
+  }
+
+  .board-table .elo {
+    grid-area: elo;
+    font-size: 1.1rem;
+  }
+
+  .board-table .detail {
+    grid-area: detail;
+    display: block;
+  }
+
+  .history-table tr {
+    grid-template-columns: auto auto minmax(0, 1fr);
+    grid-template-areas:
+      "id status date"
+      "winner winner counts";
+  }
+
+  .history-table .match-id {
+    grid-area: id;
+  }
+
+  .history-table .status-cell {
+    grid-area: status;
+    font-size: 0.75rem;
+  }
+
+  .history-table .date {
+    grid-area: date;
+    text-align: right;
+    color: var(--muted);
+    font-size: 0.75rem;
+  }
+
+  .history-table .winner {
+    grid-area: winner;
+    max-width: none;
+    font-size: 0.8rem;
+  }
+
+  .history-table .counts {
+    display: block;
+    grid-area: counts;
+    text-align: right;
+    font-size: 0.72rem;
+  }
+
+  /* Columns folded into the detail line */
+  .board-table .wide-only,
+  .history-table .wide-only {
+    display: none;
+  }
+
+  /* Board above, then controls, then the two feeds */
+  .arena-main {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .feeds .panel {
+    flex: 0 0 auto;
+    height: 34vh;
+  }
+
+}
+
+@media (max-width: 599px) {
+  :root {
+    font-size: 16px;
+    --pad: 10px;
+    --gap: 12px;
+  }
+
+  .screen {
+    padding: var(--pad);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .warrior {
+    animation: none;
+  }
+}

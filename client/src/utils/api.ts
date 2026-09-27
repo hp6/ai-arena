@@ -13,7 +13,3 @@ export function gameUrl(id: string) {
 export function framesUrl(id: string, after: number) {
   return IS_STATIC ? `${API_BASE}/${id}/frames.json` : `${API_BASE}/${id}/frames?after=${after}`;
 }
-
-export function gamesUrl() {
-  return IS_STATIC ? `${base}/games.json` : API_BASE;
-}

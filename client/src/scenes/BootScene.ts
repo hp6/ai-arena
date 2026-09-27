@@ -8,6 +8,12 @@ export class BootScene extends Phaser.Scene {
   }
 
   preload() {
+    // The overlay in index.html is the only thing on screen until this finishes
+    const bar = document.querySelector<HTMLElement>("#loading-bar > div");
+    this.load.on("progress", (value: number) => {
+      if (bar) bar.style.width = `${Math.round(value * 100)}%`;
+    });
+
     this.load.json("mapdata", "assets/terrain/map.json");
 
     // Tile layer tilesets
@@ -101,9 +107,12 @@ export class BootScene extends Phaser.Scene {
         });
       }
     }
-    loadMutePreference(this);
+    loadMutePreference(this.sound);
     // The sound manager is game-wide, so the music keeps looping across scene changes; browsers start it on the first click
     this.sound.play("bg_music", { loop: true, volume: 0.3 });
-    this.scene.start("Menu");
+
+    document.getElementById("loading")?.remove();
+    // The shell takes over from here and shows the menu
+    this.game.events.emit("boot-complete");
   }
 }

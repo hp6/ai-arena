@@ -1,5 +1,2 @@
-export const COLORS = {
-  HP_BAR_BG: 0x455a4b,
-  HP_BAR_FILL: 0x85b156,
-  HP_BAR_LOW: 0xe76161,
-};
+// The board's colors live in the palette with all the others; this keeps the board's imports short.
+export { BOARD_COLOR as COLORS } from "../ui/theme";

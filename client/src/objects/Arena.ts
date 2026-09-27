@@ -1,15 +1,12 @@
 import Phaser from "phaser";
 import { GRID_WIDTH, GRID_HEIGHT, CELL_SIZE } from "@ai-arena/shared";
 
-import { ARENA_H, ARENA_W, LAYOUT } from "../utils/layout";
-
-export const ARENA_OFFSET_X = LAYOUT.arenaX;
-export const ARENA_OFFSET_Y = LAYOUT.arenaY;
+import { ARENA_H, ARENA_TEXT, ARENA_W, GRID_PAD, VIEW_COLS, VIEW_ROWS } from "../utils/layout";
 
 // Render extra tiles beyond the visible area so edge objects/foam look correct
 const RENDER_PAD = 3;
-const RENDER_COLS = Math.ceil(LAYOUT.viewCols) + RENDER_PAD * 2 + 1;
-const RENDER_ROWS = Math.ceil(LAYOUT.viewRows) + RENDER_PAD * 2 + 1;
+const RENDER_COLS = VIEW_COLS + RENDER_PAD * 2 + 1;
+const RENDER_ROWS = VIEW_ROWS + RENDER_PAD * 2 + 1;
 
 // Tiled tile coordinates of the playable grid's top-left corner
 const GRID_TX = -6;
@@ -17,8 +14,8 @@ const GRID_TY = -7;
 
 // Top-left of the visible window, in Tiled tiles. Half a tile of scenery puts it on a half tile, so
 // the map is drawn from the whole tile before it and shifted back by the remainder.
-const VIEW_TILE_X = GRID_TX - LAYOUT.gridPad;
-const VIEW_TILE_Y = GRID_TY - LAYOUT.gridPad;
+const VIEW_TILE_X = GRID_TX - GRID_PAD;
+const VIEW_TILE_Y = GRID_TY - GRID_PAD;
 const VIEW_TX = Math.floor(VIEW_TILE_X);
 const VIEW_TY = Math.floor(VIEW_TILE_Y);
 const SHIFT_X = (VIEW_TX - VIEW_TILE_X) * CELL_SIZE;
@@ -29,8 +26,8 @@ const RENDER_TX = VIEW_TX - RENDER_PAD;
 const RENDER_TY = VIEW_TY - RENDER_PAD;
 
 // Where the playable 8x8 starts on screen
-const GRID_X = ARENA_OFFSET_X + SHIFT_X + (GRID_TX - VIEW_TX) * CELL_SIZE;
-const GRID_Y = ARENA_OFFSET_Y + SHIFT_Y + (GRID_TY - VIEW_TY) * CELL_SIZE;
+const GRID_X = SHIFT_X + (GRID_TX - VIEW_TX) * CELL_SIZE;
+const GRID_Y = SHIFT_Y + (GRID_TY - VIEW_TY) * CELL_SIZE;
 
 interface TiledTileset {
   firstgid: number;
@@ -120,7 +117,7 @@ export class Arena {
 
     // Water background fill
     const waterFill = this.scene.add.tileSprite(
-      ARENA_OFFSET_X, ARENA_OFFSET_Y,
+      0, 0,
       ARENA_W, ARENA_H,
       "Water_Background_color",
     ).setOrigin(0);
@@ -175,7 +172,7 @@ export class Arena {
       this.labels.push(
         this.scene.add
           .text(gx + c * CELL_SIZE + CELL_SIZE / 2, gy - 10, `${c}`, {
-            fontSize: "9px", color: "#161c2e", fontFamily: "monospace",
+            fontSize: ARENA_TEXT(9), color: "#161c2e", fontFamily: "monospace",
           })
           .setOrigin(0.5),
       );
@@ -184,7 +181,7 @@ export class Arena {
       this.labels.push(
         this.scene.add
           .text(gx - 14, gy + r * CELL_SIZE + CELL_SIZE / 2, `${r}`, {
-            fontSize: "9px", color: "#161c2e", fontFamily: "monospace",
+            fontSize: ARENA_TEXT(9), color: "#161c2e", fontFamily: "monospace",
           })
           .setOrigin(0.5),
       );
@@ -205,8 +202,8 @@ export class Arena {
         const localId = gid - ts.firstgid;
         const key = textureKey(ts.name);
         // Position relative to the visible area origin, offset by -RENDER_PAD
-        const screenX = ARENA_OFFSET_X + SHIFT_X + (col - RENDER_PAD) * CELL_SIZE + CELL_SIZE / 2;
-        const screenY = ARENA_OFFSET_Y + SHIFT_Y + (row - RENDER_PAD) * CELL_SIZE + CELL_SIZE / 2;
+        const screenX = SHIFT_X + (col - RENDER_PAD) * CELL_SIZE + CELL_SIZE / 2;
+        const screenY = SHIFT_Y + (row - RENDER_PAD) * CELL_SIZE + CELL_SIZE / 2;
 
         const animDef = ts.tiles?.find(t => t.id === localId);
         if (animDef?.animation) {
@@ -225,8 +222,8 @@ export class Arena {
 
   private renderObjectLayer(map: TiledMap, layer: TiledLayer) {
     // Pixel offset: Tiled pixel (0,0) → screen position (relative to visible origin)
-    const pxOffX = ARENA_OFFSET_X + SHIFT_X - VIEW_TX * CELL_SIZE;
-    const pxOffY = ARENA_OFFSET_Y + SHIFT_Y - VIEW_TY * CELL_SIZE;
+    const pxOffX = SHIFT_X - VIEW_TX * CELL_SIZE;
+    const pxOffY = SHIFT_Y - VIEW_TY * CELL_SIZE;
 
     const objects = layer.draworder === "index"
       ? layer.objects!
@@ -314,11 +311,11 @@ export class Arena {
       // Scaled up from the crop so even the small variants read as big clouds
       const scale = Phaser.Math.FloatBetween(1.6, 2.6) * (200 / crop.width);
       // Keep clouds in the upper part of the view so they don't sit on top of the fighters
-      const y = ARENA_OFFSET_Y + Phaser.Math.Between(-30, Math.round(viewH * 0.3));
+      const y = Phaser.Math.Between(-30, Math.round(viewH * 0.3));
       const width = crop.width * scale;
       // Each cloud waits out an extra screen-width off to the left, so clouds are on screen about half the time
-      const endX = ARENA_OFFSET_X + viewW + width;
-      const startX = ARENA_OFFSET_X - width - (endX - (ARENA_OFFSET_X - width));
+      const endX = viewW + width;
+      const startX = -width - (endX + width);
 
       // Cropping keeps the frame size, so the visible piece renders off-centre by this much
       const offX = (crop.x + crop.width / 2 - CLOUD_FRAME_W / 2) * scale;

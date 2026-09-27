@@ -1,47 +1,39 @@
-import Phaser from "phaser";
-import { TEXT, UI } from "./layout";
-
 const STORAGE_KEY = "tiny-ai-arena:muted";
 
-// Tracked here because Phaser's WebAudio `sound.mute` getter reads the gain node, which lags behind the setter
+// Phaser's WebAudio `sound.mute` getter lags the setter, so the truth is mirrored here.
 let muted = false;
+let manager: Phaser.Sound.BaseSoundManager | null = null;
 
-export function loadMutePreference(scene: Phaser.Scene) {
+function remember(value: boolean) {
+  try {
+    localStorage.setItem(STORAGE_KEY, value ? "1" : "0");
+  } catch {
+    // A private window or blocked storage just means the choice lasts one session
+  }
+}
+
+/** Called once at boot, before anything plays, so a muted visitor never hears the first note. */
+export function loadMutePreference(sounds: Phaser.Sound.BaseSoundManager) {
+  manager = sounds;
   try {
     muted = localStorage.getItem(STORAGE_KEY) === "1";
   } catch {
-    // Storage can be blocked; sound just starts unmuted
+    muted = false;
   }
-  scene.sound.mute = muted;
+  sounds.mute = muted;
 }
 
-// Mute applies to the game-wide sound manager, so one toggle covers every scene and future music
-export function addMuteButton(scene: Phaser.Scene, x: number, y: number, originX: number) {
-  const label = () => (muted ? "SOUND: OFF" : "SOUND: ON");
-  const button = scene.add
-    .text(x, y, label(), {
-      fontSize: TEXT(13),
-      fontFamily: "monospace",
-      fontStyle: "bold",
-      color: "#efe1ab",
-      backgroundColor: "#315a6d",
-      padding: { x: UI(10), y: UI(4) },
-    })
-    .setOrigin(originX, 0)
-    .setInteractive({ useHandCursor: true });
+export function isMuted() {
+  return muted;
+}
 
-  const toggle = () => {
-    muted = !muted;
-    scene.sound.mute = muted;
-    try {
-      localStorage.setItem(STORAGE_KEY, muted ? "1" : "0");
-    } catch {
-      // Preference just won't persist
-    }
-    button.setText(label());
-  };
+export function setMuted(value: boolean) {
+  muted = value;
+  if (manager) manager.mute = value;
+  remember(value);
+}
 
-  button.on("pointerdown", toggle);
-  scene.input.keyboard!.on("keydown-M", toggle);
-  return button;
+export function toggleMute() {
+  setMuted(!muted);
+  return muted;
 }

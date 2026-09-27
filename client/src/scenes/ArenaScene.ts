@@ -1,29 +1,59 @@
 import Phaser from "phaser";
-import type { GameFrame, FighterState, ArenaConfig } from "@ai-arena/shared";
-import { Arena, ARENA_OFFSET_X, ARENA_OFFSET_Y } from "../objects/Arena";
+import type { GameFrame, FighterState, ArenaConfig, TurnLogEntry } from "@ai-arena/shared";
+import { Arena } from "../objects/Arena";
 import { Fighter } from "../objects/Fighter";
-import { addMuteButton } from "../utils/sound";
+import { hex } from "../ui/theme";
 
-import { API_BASE, IS_STATIC, framesUrl, gameUrl } from "../utils/api";
+import { API_BASE, framesUrl, gameUrl } from "../utils/api";
 
-import { ARENA_H, ARENA_TEXT, ARENA_W, LAYOUT, TEXT, UI } from "../utils/layout";
-
-const PANEL_X = LAYOUT.panelX;
-const PANEL_WIDTH = LAYOUT.panelWidth;
-
-const LOG_Y = LAYOUT.logY;
-const LOG_HEIGHT = LAYOUT.logHeight;
-// Everything reads small on a phone, so text and line spacing scale up together
-const LOG_LINE_HEIGHT = UI(16);
-const VISIBLE_LOG_LINES = Math.floor((LOG_HEIGHT - UI(40)) / LOG_LINE_HEIGHT);
-
-const CHAT_Y = LAYOUT.chatY;
-const CHAT_HEIGHT = LAYOUT.chatHeight;
-const CHAT_LINE_HEIGHT = UI(18);
-const VISIBLE_CHAT_LINES = Math.floor((CHAT_HEIGHT - UI(40)) / CHAT_LINE_HEIGHT);
+import { ARENA_H, ARENA_TEXT, ARENA_W } from "../utils/layout";
 
 const POLL_INTERVAL = 1500;
+const AUTO_PLAY_INTERVAL = 400;
 
+/** How a status line should read: plain, good news, a caveat, or a failure. */
+export type StatusTone = "muted" | "ok" | "warn" | "error";
+
+export interface FrameEvent {
+  index: number;
+  total: number;
+  round: number;
+}
+
+export interface StatusEvent {
+  text: string;
+  tone: StatusTone;
+}
+
+export interface LogLine {
+  text: string;
+  kind: TurnLogEntry["actionType"];
+}
+
+export interface ChatLine {
+  who: string;
+  color: string;
+  text: string;
+}
+
+/**
+ * A feed update. The HUD drops everything from `from` onward, then appends `lines` — which makes
+ * stepping forward an append of one line and stepping back a truncation, rather than a rebuild.
+ */
+export interface FeedEvent<T> {
+  lines: T[];
+  from: number;
+  /** Index of the entry that is "now"; -1 when the feed is empty. Only the log uses it. */
+  current: number;
+}
+
+/**
+ * Renders the board and owns playback. Everything else — the header, the buttons, the log and the
+ * chat — is DOM, and hears about changes through the events below rather than being drawn here.
+ *
+ * Events: `frame` (FrameEvent), `status` (StatusEvent), `log` (FeedEvent<LogLine>),
+ * `chat` (FeedEvent<ChatLine>), `autoplay` (boolean).
+ */
 export class ArenaScene extends Phaser.Scene {
   private arena?: Arena;
   // Bumped whenever the scene (re)starts or leaves, so late fetch responses from an old visit are ignored
@@ -37,24 +67,14 @@ export class ArenaScene extends Phaser.Scene {
   private autoPlayTimer: Phaser.Time.TimerEvent | null = null;
   private pollTimer: Phaser.Time.TimerEvent | null = null;
 
-  private frameCounterText!: Phaser.GameObjects.Text;
-  private roundText!: Phaser.GameObjects.Text;
-  private statusText!: Phaser.GameObjects.Text;
+  /** Every chat line in frame order, with `chatPrefix[i]` counting those said through frame i. */
+  private chatLines: ChatLine[] = [];
+  private chatPrefix: number[] = [];
+  private indexedFrames = 0;
 
-  private logTitle!: Phaser.GameObjects.Text;
-  private chatTitle!: Phaser.GameObjects.Text;
-  private logTexts: Phaser.GameObjects.Text[] = [];
-  private chatTexts: Phaser.GameObjects.Text[] = [];
-  private btnAuto!: Phaser.GameObjects.Text;
-  private hintY = 0;
-  // Entries held back from the bottom of each panel; 0 follows the newest line
-  private logScroll = 0;
-  private chatScroll = 0;
-  private logCount = 0;
-  private chatCount = 0;
-  private dragPanel: "log" | "chat" | null = null;
-  private dragFromY = 0;
-  private dragFromScroll = 0;
+  // How many entries the DOM feeds currently hold, so an update can be a delta
+  private renderedLog = 0;
+  private renderedChat = 0;
 
   constructor() {
     super("Arena");
@@ -71,147 +91,26 @@ export class ArenaScene extends Phaser.Scene {
     this.autoPlaying = false;
     this.autoPlayTimer = null;
     this.pollTimer = null;
-    this.logTexts = [];
-    this.chatTexts = [];
-    this.logScroll = 0;
-    this.chatScroll = 0;
-    this.dragPanel = null;
+    this.resetFeeds();
 
-    // Phaser 4 geometry masks don't work in WebGL; a camera viewport clips the arena instead
-    const arenaCam = this.cameras
-      .add(ARENA_OFFSET_X, ARENA_OFFSET_Y, ARENA_W, ARENA_H)
-      .setScroll(ARENA_OFFSET_X, ARENA_OFFSET_Y);
-    this.addArenaTapTarget(arenaCam);
-    this.createUI();
-    this.setupInput();
+    this.addArenaTapTarget();
+    this.events.emit("autoplay", false);
+
     if (data?.newGame) this.startNewGame();
     else if (data?.gameId) this.loadGame(data.gameId);
-    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.session++);
+
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.session++;
+      this.stopPolling();
+      this.stopAutoPlay();
+    });
   }
 
-  private createUI() {
-    // --- FRAME COUNTER (top-left, above arena) ---
-    this.frameCounterText = this.add.text(LAYOUT.headerX, LAYOUT.headerY, "", {
-      fontSize: TEXT(13),
-      color: "#e8ce91",
-      fontFamily: "monospace",
-      fontStyle: "bold",
-    });
-
-    this.roundText = this.add.text(LAYOUT.headerX, LAYOUT.headerY + LAYOUT.headerLineHeight, "", {
-      fontSize: TEXT(12),
-      color: "#d8cfa8",
-      fontFamily: "monospace",
-    });
-
-    this.statusText = this.add.text(LAYOUT.headerX, LAYOUT.headerY + LAYOUT.headerLineHeight * 2, "", {
-      fontSize: TEXT(12),
-      color: "#85b156",
-      fontFamily: "monospace",
-    });
-
-    // --- LOG PANEL ---
-    this.add
-      .rectangle(PANEL_X + PANEL_WIDTH / 2, LOG_Y + LOG_HEIGHT / 2, PANEL_WIDTH, LOG_HEIGHT, 0x1e2b38, 0.95)
-      .setStrokeStyle(2, 0x315a6d);
-
-    this.logTitle = this.add.text(PANEL_X + 10, LOG_Y + UI(8), "GAME LOG", {
-      fontSize: TEXT(13),
-      color: "#e8ce91",
-      fontFamily: "monospace",
-      fontStyle: "bold",
-    });
-
-    for (let i = 0; i < VISIBLE_LOG_LINES; i++) {
-      this.logTexts.push(
-        this.add.text(PANEL_X + 10, LOG_Y + UI(30) + i * LOG_LINE_HEIGHT, "", {
-          fontSize: TEXT(11),
-          color: "#d8cfa8",
-          fontFamily: "monospace",
-          wordWrap: { width: PANEL_WIDTH - 20 },
-        }),
-      );
-    }
-
-    // --- CHAT PANEL ---
-    this.add
-      .rectangle(PANEL_X + PANEL_WIDTH / 2, CHAT_Y + CHAT_HEIGHT / 2, PANEL_WIDTH, CHAT_HEIGHT, 0x1b2531, 0.95)
-      .setStrokeStyle(2, 0x315a6d);
-
-    this.chatTitle = this.add.text(PANEL_X + 10, CHAT_Y + UI(8), "GLOBAL CHAT", {
-      fontSize: TEXT(13),
-      color: "#93ba4f",
-      fontFamily: "monospace",
-      fontStyle: "bold",
-    });
-
-    for (let i = 0; i < VISIBLE_CHAT_LINES; i++) {
-      this.chatTexts.push(
-        this.add.text(PANEL_X + 10, CHAT_Y + UI(30) + i * CHAT_LINE_HEIGHT, "", {
-          fontSize: TEXT(11),
-          color: "#d8cfa8",
-          fontFamily: "monospace",
-          wordWrap: { width: PANEL_WIDTH - 20 },
-        }),
-      );
-    }
-
-    // --- CONTROLS ---
-    const btnY = LAYOUT.buttonsY;
-    // Bigger tap targets on phones, where there is no mouse and no keyboard shortcuts
-    const btnStyle = {
-      fontSize: TEXT(15),
-      color: "#161c2e",
-      fontFamily: "monospace",
-      fontStyle: "bold",
-      backgroundColor: "#e8ce91",
-      padding: { x: UI(12), y: UI(6) },
-    };
-    const btnStyleAlt = { ...btnStyle, backgroundColor: "#315a6d", color: "#d8cfa8" };
-
-    // Laid out in a row in landscape; portrait wraps them onto a second line
-    const buttons: [string, Phaser.Types.GameObjects.Text.TextStyle, () => void][] = [
-      ["|<", btnStyleAlt, () => this.goToFrame(0)],
-      ["< PREV", btnStyle, () => this.stepBackward()],
-      ["NEXT >", btnStyle, () => this.stepForward()],
-      [">|", btnStyleAlt, () => this.goToFrame(this.frames.length - 1)],
-      ["AUTO PLAY", { ...btnStyleAlt, backgroundColor: "#e76161", color: "#161c2e" }, () => this.toggleAutoPlay()],
-      ...(IS_STATIC ? [] : [["NEW GAME", { ...btnStyleAlt, backgroundColor: "#85b156", color: "#161c2e" }, () => this.startNewGame()] as [string, Phaser.Types.GameObjects.Text.TextStyle, () => void]]),
-      ["MENU", btnStyleAlt, () => this.scene.start("Menu")],
-    ];
-
-    let x = LAYOUT.margin;
-    let y = btnY;
-    // Buttons sit under the arena, so they wrap against its width, not the side panel's
-    const rowEnd = ARENA_OFFSET_X + ARENA_W;
-    for (const [label, style, onClick] of buttons) {
-      const button = this.add.text(x, y, label, style).setInteractive({ useHandCursor: true }).on("pointerdown", onClick);
-      // Wrap before drawing rather than after, so a wide button never hangs off the edge
-      if (x > LAYOUT.margin && x + button.width > rowEnd) {
-        x = LAYOUT.margin;
-        y += button.height + 10;
-        button.setPosition(x, y);
-      }
-      if (label === "AUTO PLAY") this.btnAuto = button;
-      x += button.width + 12;
-    }
-    this.hintY = y + 46;
-
-    // Keyboard hints are pointless on a touch screen
-    if (!LAYOUT.portrait) {
-      this.add.text(LAYOUT.margin, this.hintY, "Arrow keys: Left/Right | Home/End | Space: auto | Esc: menu | M: mute", {
-        fontSize: "10px",
-        color: "#6f8a86",
-        fontFamily: "monospace",
-      });
-    }
-  }
-
-  /** A touch screen has no arrow keys, so tapping the arena steps forward exactly like NEXT */
-  private addArenaTapTarget(arenaCam: Phaser.Cameras.Scene2D.Camera) {
+  /** A touch screen has no arrow keys, so tapping the board steps forward exactly like NEXT */
+  private addArenaTapTarget() {
     if (!this.sys.game.device.input.touch) return;
-    const tap = this.add
-      .zone(ARENA_OFFSET_X, ARENA_OFFSET_Y, ARENA_W, ARENA_H)
+    this.add
+      .zone(0, 0, ARENA_W, ARENA_H)
       .setOrigin(0)
       .setInteractive()
       .on("pointerup", (pointer: Phaser.Input.Pointer) => {
@@ -221,64 +120,10 @@ export class ArenaScene extends Phaser.Scene {
         if (pointer.getDistance() > 12) return;
         this.stepForward();
       });
-    arenaCam.ignore(tap);
   }
 
-  /** Which panel, if any, the pointer is over */
-  private panelAt(x: number, y: number): "log" | "chat" | null {
-    if (x < PANEL_X || x > PANEL_X + PANEL_WIDTH) return null;
-    if (y >= LOG_Y && y <= LOG_Y + LOG_HEIGHT) return "log";
-    if (y >= CHAT_Y && y <= CHAT_Y + CHAT_HEIGHT) return "chat";
-    return null;
-  }
-
-  private scrollOf(panel: "log" | "chat") {
-    return panel === "log" ? this.logScroll : this.chatScroll;
-  }
-
-  /** Holds the panel back from the newest entry; clamped so at least one entry stays on screen */
-  private scrollPanel(panel: "log" | "chat", to: number) {
-    const log = panel === "log";
-    const max = Math.max(0, (log ? this.logCount : this.chatCount) - 1);
-    const next = Phaser.Math.Clamp(to, 0, max);
-    if (next === this.scrollOf(panel)) return;
-    if (log) {
-      this.logScroll = next;
-      this.updateLog();
-    } else {
-      this.chatScroll = next;
-      this.updateChat();
-    }
-  }
-
-  // The panels follow the newest line, but can be pulled back to read what scrolled past
-  private setupPanelScrolling() {
-    this.input.on("wheel", (p: Phaser.Input.Pointer, _o: unknown, _dx: number, dy: number) => {
-      const panel = this.panelAt(p.x, p.y);
-      if (panel) this.scrollPanel(panel, this.scrollOf(panel) - Math.sign(dy) * 3);
-    });
-
-    this.input.on("pointerdown", (p: Phaser.Input.Pointer) => {
-      this.dragPanel = this.panelAt(p.x, p.y);
-      this.dragFromY = p.y;
-      this.dragFromScroll = this.dragPanel ? this.scrollOf(this.dragPanel) : 0;
-    });
-    this.input.on("pointermove", (p: Phaser.Input.Pointer) => {
-      if (!this.dragPanel || !p.isDown) return;
-      const rowHeight = this.dragPanel === "log" ? LOG_LINE_HEIGHT : CHAT_LINE_HEIGHT;
-      this.scrollPanel(this.dragPanel, this.dragFromScroll + Math.round((p.y - this.dragFromY) / rowHeight));
-    });
-  }
-
-  private setupInput() {
-    this.setupPanelScrolling();
-    this.input.keyboard!.on("keydown-RIGHT", () => this.stepForward());
-    this.input.keyboard!.on("keydown-LEFT", () => this.stepBackward());
-    this.input.keyboard!.on("keydown-HOME", () => this.goToFrame(0));
-    this.input.keyboard!.on("keydown-END", () => this.goToFrame(this.frames.length - 1));
-    this.input.keyboard!.on("keydown-SPACE", () => this.toggleAutoPlay());
-    this.input.keyboard!.on("keydown-ESC", () => this.scene.start("Menu"));
-    addMuteButton(this, ARENA_OFFSET_X + ARENA_W, LAYOUT.headerY + 2, 1);
+  private status(text: string, tone: StatusTone) {
+    this.events.emit("status", { text, tone } satisfies StatusEvent);
   }
 
   // ---- SERVER COMMUNICATION ----
@@ -304,15 +149,14 @@ export class ArenaScene extends Phaser.Scene {
       if (!this.gameFinished) this.startPolling();
     } catch {
       if (session !== this.session) return;
-      this.statusText.setText("Failed to load game!");
-      this.statusText.setColor("#e76161");
+      this.status("Failed to load game!", "error");
     }
   }
 
-  private async startNewGame() {
+  async startNewGame() {
     this.stopAutoPlay();
     this.stopPolling();
-    this.statusText.setText("Creating game...");
+    this.status("Creating game…", "muted");
 
     const session = this.session;
     try {
@@ -327,62 +171,49 @@ export class ArenaScene extends Phaser.Scene {
       if (resp.status === 409) {
         await this.loadGame(data.runningGameId);
         if (session !== this.session) return;
-        this.statusText.setText(data.error ?? "Too many games running");
-        this.statusText.setColor("#e8ce91");
+        this.status(data.error ?? "Too many games running", "warn");
         return;
       }
 
       this.setupGame(data, []);
-
-      this.statusText.setText(`Game ${data.id} - AI running...`);
-      this.statusText.setColor("#85b156");
+      this.status(`Game ${data.id} — AI running…`, "warn");
 
       await this.pollFrames();
       this.startPolling();
     } catch {
       if (session !== this.session) return;
-      this.statusText.setText("Failed to connect to server!");
-      this.statusText.setColor("#e76161");
+      this.status("Failed to connect to server!", "error");
     }
   }
 
-  private setupGame(data: { id: string; fighters: FighterState[]; arena: ArenaConfig; status?: string }, frames: GameFrame[]) {
+  private setupGame(
+    data: { id: string; fighters: FighterState[]; arena: ArenaConfig; status?: string },
+    frames: GameFrame[],
+  ) {
     this.gameId = data.id;
     this.gameFinished = data.status === "finished" || data.status === "interrupted";
     this.frames = frames;
+    this.resetFeeds();
 
     for (const f of this.fighters) f.destroy();
     this.arena?.destroy();
 
     const arena = new Arena(this, data.arena.obstacles, data.arena.gold ?? null);
     this.arena = arena;
-    this.cameras.main.ignore(arena.layer);
 
     this.fighters = [];
     for (const fs of data.fighters) {
       const worldPos = arena.gridToWorld(fs.position.x, fs.position.y);
-      const fighter = new Fighter(
-        this,
-        fs.id,
-        fs.name,
-        worldPos.x,
-        worldPos.y,
-        fs.color,
-        fs.hp,
-        fs.maxHp,
-      );
+      const fighter = new Fighter(this, fs.id, fs.name, worldPos.x, worldPos.y, fs.color, fs.hp, fs.maxHp);
       fighter.setPosition(worldPos.x, worldPos.y, fs.position.x, fs.position.y);
-      this.cameras.main.ignore([fighter.container, fighter.bubble]);
       this.fighters.push(fighter);
     }
 
-    if (this.frames.length > 0) {
-      this.applyFrame(0);
-    }
+    if (this.frames.length > 0) this.applyFrame(0);
+    else this.events.emit("frame", { index: -1, total: 0, round: 0 } satisfies FrameEvent);
 
-    const label = this.gameFinished ? "Game finished" : "AI running...";
-    this.statusText.setText(`Game ${data.id} - ${label}`);
-    this.statusText.setColor(this.gameFinished ? "#85b156" : "#e8ce91");
+    const label = this.gameFinished ? "Game finished" : "AI running…";
+    this.status(`Game ${data.id} — ${label}`, this.gameFinished ? "ok" : "warn");
   }
 
   private async pollFrames() {
@@ -399,6 +230,7 @@ export class ArenaScene extends Phaser.Scene {
       if (data.frames.length > 0) {
         this.frames.push(...data.frames);
 
+        // Follow the newest frame only for a viewer who was already at the tail
         if (this.currentFrame >= this.frames.length - data.frames.length - 1) {
           this.applyFrame(this.frames.length - 1);
         }
@@ -407,10 +239,10 @@ export class ArenaScene extends Phaser.Scene {
       if (data.status === "finished" || data.status === "interrupted") {
         this.gameFinished = true;
         this.stopPolling();
-        this.statusText.setText(data.status === "finished" ? "Game finished!" : "Game interrupted");
-        this.statusText.setColor(data.status === "finished" ? "#85b156" : "#e76161");
+        if (data.status === "finished") this.status("Game finished!", "ok");
+        else this.status("Game interrupted", "error");
       } else {
-        this.statusText.setText(`Game ${this.gameId} - AI running... (${data.totalFrames} frames)`);
+        this.status(`Game ${this.gameId} — AI running… (${data.totalFrames} frames)`, "warn");
       }
     } catch {}
   }
@@ -434,60 +266,62 @@ export class ArenaScene extends Phaser.Scene {
   // ---- NAVIGATION ----
 
   // Stepping by hand takes over from auto play
-  private stepForward() {
+  stepForward() {
     this.stopAutoPlay();
-    if (this.currentFrame < this.frames.length - 1) {
-      this.applyFrame(this.currentFrame + 1);
-    }
+    if (this.currentFrame < this.frames.length - 1) this.applyFrame(this.currentFrame + 1);
   }
 
-  private stepBackward() {
+  stepBackward() {
     this.stopAutoPlay();
-    if (this.currentFrame > 0) {
-      this.applyFrame(this.currentFrame - 1);
-    }
+    if (this.currentFrame > 0) this.applyFrame(this.currentFrame - 1);
   }
 
-  private goToFrame(index: number) {
+  goToFrame(index: number) {
     this.stopAutoPlay();
     if (this.frames.length === 0) return;
     this.applyFrame(Math.max(0, Math.min(index, this.frames.length - 1)));
   }
 
-  private toggleAutoPlay() {
+  goToFirst() {
+    this.goToFrame(0);
+  }
+
+  goToLast() {
+    this.goToFrame(this.frames.length - 1);
+  }
+
+  toggleAutoPlay() {
     if (this.autoPlaying) {
       this.stopAutoPlay();
     } else {
       this.autoPlaying = true;
-      this.btnAuto.setText("STOP");
-      this.btnAuto.setBackgroundColor("#e76161");
+      this.events.emit("autoplay", true);
       this.autoStep();
     }
   }
 
   private stopAutoPlay() {
+    const was = this.autoPlaying;
     this.autoPlaying = false;
-    this.btnAuto.setText("AUTO PLAY");
-    this.btnAuto.setBackgroundColor("#e76161");
     if (this.autoPlayTimer) {
       this.autoPlayTimer.destroy();
       this.autoPlayTimer = null;
     }
+    if (was) this.events.emit("autoplay", false);
   }
 
   private autoStep() {
     if (!this.autoPlaying) return;
 
-    if (this.currentFrame < this.frames.length - 1) {
-      this.applyFrame(this.currentFrame + 1);
-    }
+    if (this.currentFrame < this.frames.length - 1) this.applyFrame(this.currentFrame + 1);
 
+    // A live game keeps the timer armed at the tail, waiting for frames still to be written
     if (this.gameFinished && this.currentFrame >= this.frames.length - 1) {
       this.stopAutoPlay();
       return;
     }
 
-    this.autoPlayTimer = this.time.delayedCall(400, () => this.autoStep());
+    this.autoPlayTimer = this.time.delayedCall(AUTO_PLAY_INTERVAL, () => this.autoStep());
   }
 
   // ---- DISPLAY ----
@@ -537,13 +371,14 @@ export class ArenaScene extends Phaser.Scene {
       });
     }
 
-    this.frameCounterText.setText(`Frame ${this.currentFrame + 1} / ${this.frames.length}`);
-    this.roundText.setText(
-      frame.round > 0 ? `Round ${frame.round}` : frame.round === 0 ? "Pre-game" : "Game Over",
-    );
+    this.events.emit("frame", {
+      index: this.currentFrame,
+      total: this.frames.length,
+      round: frame.round,
+    } satisfies FrameEvent);
 
-    this.updateLog();
-    this.updateChat();
+    this.emitLog();
+    this.emitChat();
   }
 
   /** New matches store only what was said on each frame; older ones repeat the whole conversation */
@@ -554,10 +389,55 @@ export class ArenaScene extends Phaser.Scene {
     return (frame.chatMessages ?? []).slice(previous);
   }
 
-  private chatUpTo(index: number) {
-    const lines: { fighterId: string; text: string }[] = [];
-    for (let i = 0; i <= index; i++) lines.push(...this.saidOn(i));
-    return lines;
+  private resetFeeds() {
+    this.chatLines = [];
+    this.chatPrefix = [];
+    this.indexedFrames = 0;
+    this.renderedLog = 0;
+    this.renderedChat = 0;
+    this.events.emit("log", { lines: [], from: 0, current: -1 } satisfies FeedEvent<LogLine>);
+    this.events.emit("chat", { lines: [], from: 0, current: -1 } satisfies FeedEvent<ChatLine>);
+  }
+
+  /** Flattens the chat out of any frames that have arrived since the last pass. */
+  private indexChat() {
+    for (let i = this.indexedFrames; i < this.frames.length; i++) {
+      for (const said of this.saidOn(i)) {
+        const speaker = this.fighters.find((f) => f.id === said.fighterId);
+        this.chatLines.push({
+          who: speaker?.name ?? said.fighterId,
+          color: hex(speaker?.color ?? 0xffffff),
+          text: said.text,
+        });
+      }
+      this.chatPrefix[i] = this.chatLines.length;
+    }
+    this.indexedFrames = this.frames.length;
+  }
+
+  private emitLog() {
+    const count = this.currentFrame + 1;
+    const lines: LogLine[] = [];
+    // Growing appends what is new; stepping back just truncates to the new length
+    const from = Math.min(this.renderedLog, count);
+    for (let i = from; i < count; i++) {
+      const entry = this.frames[i].logEntry;
+      lines.push({ text: `${String(i + 1).padStart(3, " ")} ${entry.description}`, kind: entry.actionType });
+    }
+    this.renderedLog = count;
+    this.events.emit("log", { lines, from, current: count - 1 } satisfies FeedEvent<LogLine>);
+  }
+
+  private emitChat() {
+    this.indexChat();
+    const count = this.chatPrefix[this.currentFrame] ?? 0;
+    const from = Math.min(this.renderedChat, count);
+    this.renderedChat = count;
+    this.events.emit("chat", {
+      lines: this.chatLines.slice(from, count),
+      from,
+      current: count - 1,
+    } satisfies FeedEvent<ChatLine>);
   }
 
   private showHpChange(fighter: Fighter, change: number) {
@@ -573,8 +453,6 @@ export class ArenaScene extends Phaser.Scene {
       })
       .setOrigin(0.5)
       .setScale(0.6);
-    // Only the arena camera should draw it, or it would render twice
-    this.cameras.main.ignore(label);
 
     this.tweens.add({ targets: label, scale: 1, duration: 180, ease: "Back.easeOut" });
     this.tweens.add({ targets: label, y: label.y - 44, duration: 1100, ease: "Cubic.easeOut" });
@@ -585,119 +463,5 @@ export class ArenaScene extends Phaser.Scene {
       duration: 550,
       onComplete: () => label.destroy(),
     });
-  }
-
-  private layoutPanel(
-    textObjects: Phaser.GameObjects.Text[],
-    panelY: number,
-    panelHeight: number,
-    items: { text: string; color: string; bold: boolean }[],
-    scrollBack = 0,
-  ) {
-    for (const t of textObjects) {
-      t.setText("");
-      t.setVisible(false);
-    }
-
-    if (items.length === 0) return;
-
-    const availableHeight = panelHeight - UI(40);
-    const gap = UI(3);
-
-    const fitting: number[] = [];
-    let totalHeight = 0;
-    const measure = textObjects[0];
-
-    for (let i = items.length - 1 - scrollBack; i >= 0; i--) {
-      measure.setText(items[i].text);
-      const h = measure.height + gap;
-      if (totalHeight + h > availableHeight && fitting.length > 0) break;
-      totalHeight += h;
-      fitting.push(i);
-      if (fitting.length >= textObjects.length) break;
-    }
-
-    measure.setText("");
-    fitting.reverse();
-
-    let y = panelY + UI(30);
-    for (let slot = 0; slot < fitting.length; slot++) {
-      const item = items[fitting[slot]];
-      const obj = textObjects[slot];
-      obj.setText(item.text);
-      obj.setColor(item.color);
-      obj.setFontStyle(item.bold ? "bold" : "normal");
-      obj.setY(y);
-      obj.setVisible(true);
-      y += obj.height + gap;
-    }
-  }
-
-  private updateLog() {
-    if (this.frames.length === 0) {
-      this.logCount = 0;
-      this.layoutPanel(this.logTexts, LOG_Y, LOG_HEIGHT, []);
-      return;
-    }
-
-    const endIdx = this.currentFrame + 1;
-    const items: { text: string; color: string; bold: boolean }[] = [];
-
-    for (let fi = 0; fi < endIdx; fi++) {
-      const entry = this.frames[fi].logEntry;
-      const prefix = `${String(fi + 1).padStart(3, " ")} `;
-      const isCurrent = fi === this.currentFrame;
-
-      let color: string;
-      let bold: boolean;
-      if (isCurrent) {
-        color = "#efe1ab"; bold = true;
-      } else if (entry.actionType === "round_start") {
-        color = "#e8ce91"; bold = false;
-      } else if (entry.actionType === "attack") {
-        color = "#e76161"; bold = false;
-      } else if (entry.actionType === "pickup") {
-        color = "#f5d76e"; bold = true;
-      } else if (entry.actionType === "elimination") {
-        color = "#e76161"; bold = true;
-      } else if (entry.actionType === "victory") {
-        color = "#85b156"; bold = true;
-      } else {
-        color = "#d8cfa8"; bold = false;
-      }
-
-      items.push({ text: `${prefix}${entry.description}`, color, bold });
-    }
-
-    // Scrolled back, the view stays on the same entries as the log grows or shrinks under it
-    if (this.logScroll > 0) this.logScroll += items.length - this.logCount;
-    this.logCount = items.length;
-    this.logScroll = Phaser.Math.Clamp(this.logScroll, 0, Math.max(0, items.length - 1));
-    this.logTitle.setText(this.logScroll > 0 ? "GAME LOG (scrolled back)" : "GAME LOG");
-    this.layoutPanel(this.logTexts, LOG_Y, LOG_HEIGHT, items, this.logScroll);
-  }
-
-  private updateChat() {
-    if (this.frames.length === 0) {
-      this.chatCount = 0;
-      this.layoutPanel(this.chatTexts, CHAT_Y, CHAT_HEIGHT, []);
-      return;
-    }
-
-    const messages = this.chatUpTo(this.currentFrame);
-    const items = messages.map((msg, i) => {
-      const speaker = this.fighters.find((f) => f.id === msg.fighterId);
-      return {
-        text: `${speaker?.name ?? msg.fighterId}: ${msg.text}`,
-        color: "#" + (speaker?.color ?? 0xffffff).toString(16).padStart(6, "0"),
-        bold: i === messages.length - 1,
-      };
-    });
-
-    if (this.chatScroll > 0) this.chatScroll += items.length - this.chatCount;
-    this.chatCount = items.length;
-    this.chatScroll = Phaser.Math.Clamp(this.chatScroll, 0, Math.max(0, items.length - 1));
-    this.chatTitle.setText(this.chatScroll > 0 ? "GLOBAL CHAT (scrolled back)" : "GLOBAL CHAT");
-    this.layoutPanel(this.chatTexts, CHAT_Y, CHAT_HEIGHT, items, this.chatScroll);
   }
 }

@@ -1,41 +1,5 @@
-import type { GameFrame } from "@ai-arena/shared";
+import type { GameFrame, MatchSummary, ModelStats, Stats } from "@ai-arena/shared";
 import { listAllGames, getFramesAfter, setGameSummary, type GameRecord } from "./db/database.js";
-
-export interface MatchFighter {
-  id: string;
-  name: string;
-  model: string;
-  color: number;
-  kills: number;
-  damageDealt: number;
-  damageTaken: number;
-  placement: number | null;
-}
-
-export interface MatchSummary {
-  id: string;
-  status: GameRecord["status"];
-  createdAt: string;
-  rounds: number;
-  turns: number;
-  winnerId: string | null;
-  fighters: MatchFighter[];
-}
-
-export interface ModelStats {
-  model: string;
-  /** Rating from finished matches; fair even when models have played very different numbers of games */
-  elo: number;
-  fighterId: string;
-  color: number;
-  played: number;
-  wins: number;
-  winRate: number;
-  kills: number;
-  damageDealt: number;
-  damageTaken: number;
-  avgPlacement: number;
-}
 
 const START_ELO = 1000;
 const K_FACTOR = 32;
@@ -66,12 +30,6 @@ function eloByModel(oldestFirst: MatchSummary[]): Map<string, number> {
   }
 
   return elo;
-}
-
-export interface Stats {
-  totals: { games: number; finished: number; running: number; interrupted: number; avgRounds: number };
-  models: ModelStats[];
-  matches: MatchSummary[];
 }
 
 function summarize(game: GameRecord, frames: GameFrame[]): MatchSummary {

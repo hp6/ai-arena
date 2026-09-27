@@ -78,3 +78,53 @@ export interface GameState {
   status: "waiting" | "in_progress" | "finished";
   winner: string | null;
 }
+
+/** How a persisted match stands: still playing, played to the end, or cut short by a restart. */
+export type MatchStatus = "running" | "finished" | "interrupted";
+
+/** One fighter's contribution to a single match. */
+export interface MatchFighter {
+  id: string;
+  name: string;
+  model: string;
+  color: number;
+  kills: number;
+  damageDealt: number;
+  damageTaken: number;
+  /** 1 for the winner, null while the match is unfinished. */
+  placement: number | null;
+}
+
+/** A finished or in-flight match, as the leaderboard and history list see it. */
+export interface MatchSummary {
+  id: string;
+  status: MatchStatus;
+  createdAt: string;
+  rounds: number;
+  turns: number;
+  winnerId: string | null;
+  fighters: MatchFighter[];
+}
+
+/** A model's record across every finished match it played. */
+export interface ModelStats {
+  model: string;
+  /** Rating from finished matches; fair even when models have played very different numbers of games */
+  elo: number;
+  fighterId: string;
+  color: number;
+  played: number;
+  wins: number;
+  winRate: number;
+  kills: number;
+  damageDealt: number;
+  damageTaken: number;
+  avgPlacement: number;
+}
+
+/** The payload of GET /api/stats, and of stats.json in a static export. */
+export interface Stats {
+  totals: { games: number; finished: number; running: number; interrupted: number; avgRounds: number };
+  models: ModelStats[];
+  matches: MatchSummary[];
+}

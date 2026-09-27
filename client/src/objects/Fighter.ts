@@ -1,5 +1,5 @@
 import Phaser from "phaser";
-import { ARENA_TEXT, ARENA_UI, LAYOUT } from "../utils/layout";
+import { ARENA_TEXT, ARENA_UI } from "../utils/layout";
 import { CELL_SIZE, MAX_AP, GRID_WIDTH } from "@ai-arena/shared";
 
 import { COLORS } from "../utils/colors";
@@ -83,8 +83,8 @@ export class Fighter {
       align: "center",
       stroke: "#161c2e",
       strokeThickness: 3,
-      // Bigger phone text would otherwise stretch a model name across half the board
-      ...(LAYOUT.portrait ? { wordWrap: { width: CELL_SIZE * 2.8 } } : {}),
+      // A model name would otherwise stretch across half the board
+      wordWrap: { width: CELL_SIZE * 2.8 },
     });
     this.label.setOrigin(0.5);
 
